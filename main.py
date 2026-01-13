@@ -16,7 +16,6 @@ from datetime import datetime
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.config import ConfigManager
-from src.config_loader import load_config
 from src.arxiv_scraper import ArxivScraper
 from src.utils import setup_logging, send_notification, format_paper_summary, ensure_directories
 

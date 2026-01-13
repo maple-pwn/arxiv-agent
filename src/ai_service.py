@@ -69,6 +69,26 @@ class BaseAIService(ABC):
         """
         pass
 
+    @abstractmethod
+    def filter_paper(self, paper: Dict[str, Any], filter_keywords: str) -> Dict[str, Any]:
+        """
+        判断论文是否与筛选关键词相关
+
+        Args:
+            paper: 论文数据
+            filter_keywords: 筛选关键词
+
+        Returns:
+            包含筛选结果的字典：
+            {
+                'relevant': bool,  # 是否相关
+                'confidence': float,  # 置信度 (0.0-1.0)
+                'reason': str,  # 判断理由
+                'status': str  # 'success' or 'error'
+            }
+        """
+        pass
+
 
 class OpenAIService(BaseAIService):
     """OpenAI API 服务"""
@@ -238,6 +258,62 @@ class OpenAIService(BaseAIService):
                 'error': str(e)
             }
 
+    def filter_paper(self, paper: Dict[str, Any], filter_keywords: str) -> Dict[str, Any]:
+        """判断论文相关性"""
+        title = paper.get('title', 'N/A')
+        summary = paper.get('summary', '')
+
+        # 从prompt_loader获取prompt
+        system_prompt, user_prompt = self.prompt_loader.get_prompt(
+            'filter',
+            filter_keywords=filter_keywords,
+            title=title,
+            summary=summary
+        )
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
+
+        try:
+            import json as json_lib
+            response_text = self._call_api(messages)
+
+            # 尝试解析 JSON
+            try:
+                # 提取 JSON 部分（处理可能的 markdown 代码块）
+                if '```json' in response_text:
+                    response_text = response_text.split('```json')[1].split('```')[0].strip()
+                elif '```' in response_text:
+                    response_text = response_text.split('```')[1].split('```')[0].strip()
+
+                filter_result = json_lib.loads(response_text)
+                return {
+                    'relevant': filter_result.get('relevant', False),
+                    'confidence': float(filter_result.get('confidence', 0.0)),
+                    'reason': filter_result.get('reason', ''),
+                    'status': 'success'
+                }
+            except:
+                # JSON 解析失败，返回默认值（保守策略：保留论文）
+                self.logger.warning(f"筛选结果JSON解析失败，保留论文: {title[:50]}")
+                return {
+                    'relevant': True,
+                    'confidence': 0.5,
+                    'reason': 'JSON解析失败，默认保留',
+                    'status': 'success'
+                }
+
+        except Exception as e:
+            self.logger.error(f"论文筛选失败: {str(e)}")
+            return {
+                'relevant': True,  # 出错时保留论文
+                'confidence': 0.5,
+                'reason': f'筛选失败: {str(e)}',
+                'status': 'error'
+            }
+
 
 class AnthropicService(BaseAIService):
     """Anthropic Claude API 服务"""
@@ -389,6 +465,57 @@ class AnthropicService(BaseAIService):
                 'error': str(e)
             }
 
+    def filter_paper(self, paper: Dict[str, Any], filter_keywords: str) -> Dict[str, Any]:
+        """判断论文相关性"""
+        title = paper.get('title', 'N/A')
+        summary = paper.get('summary', '')
+
+        # 从prompt_loader获取prompt
+        system_prompt, user_prompt = self.prompt_loader.get_prompt(
+            'filter',
+            filter_keywords=filter_keywords,
+            title=title,
+            summary=summary
+        )
+
+        try:
+            import json as json_lib
+            response_text = self._call_api(user_prompt, system_prompt)
+
+            # 尝试解析 JSON
+            try:
+                # 提取 JSON 部分（处理可能的 markdown 代码块）
+                if '```json' in response_text:
+                    response_text = response_text.split('```json')[1].split('```')[0].strip()
+                elif '```' in response_text:
+                    response_text = response_text.split('```')[1].split('```')[0].strip()
+
+                filter_result = json_lib.loads(response_text)
+                return {
+                    'relevant': filter_result.get('relevant', False),
+                    'confidence': float(filter_result.get('confidence', 0.0)),
+                    'reason': filter_result.get('reason', ''),
+                    'status': 'success'
+                }
+            except:
+                # JSON 解析失败，返回默认值（保守策略：保留论文）
+                self.logger.warning(f"筛选结果JSON解析失败，保留论文: {title[:50]}")
+                return {
+                    'relevant': True,
+                    'confidence': 0.5,
+                    'reason': 'JSON解析失败，默认保留',
+                    'status': 'success'
+                }
+
+        except Exception as e:
+            self.logger.error(f"论文筛选失败: {str(e)}")
+            return {
+                'relevant': True,  # 出错时保留论文
+                'confidence': 0.5,
+                'reason': f'筛选失败: {str(e)}',
+                'status': 'error'
+            }
+
 
 class OllamaService(BaseAIService):
     """Ollama 本地模型服务"""
@@ -522,6 +649,57 @@ class OllamaService(BaseAIService):
                 'insights': [],
                 'status': 'error',
                 'error': str(e)
+            }
+
+    def filter_paper(self, paper: Dict[str, Any], filter_keywords: str) -> Dict[str, Any]:
+        """判断论文相关性"""
+        title = paper.get('title', 'N/A')
+        summary = paper.get('summary', '')
+
+        # 从prompt_loader获取prompt
+        system_prompt, user_prompt = self.prompt_loader.get_prompt(
+            'filter',
+            filter_keywords=filter_keywords,
+            title=title,
+            summary=summary
+        )
+
+        try:
+            import json as json_lib
+            response_text = self._call_api(user_prompt, system_prompt)
+
+            # 尝试解析 JSON
+            try:
+                # 提取 JSON 部分（处理可能的 markdown 代码块）
+                if '```json' in response_text:
+                    response_text = response_text.split('```json')[1].split('```')[0].strip()
+                elif '```' in response_text:
+                    response_text = response_text.split('```')[1].split('```')[0].strip()
+
+                filter_result = json_lib.loads(response_text)
+                return {
+                    'relevant': filter_result.get('relevant', False),
+                    'confidence': float(filter_result.get('confidence', 0.0)),
+                    'reason': filter_result.get('reason', ''),
+                    'status': 'success'
+                }
+            except:
+                # JSON 解析失败，返回默认值（保守策略：保留论文）
+                self.logger.warning(f"筛选结果JSON解析失败，保留论文: {title[:50]}")
+                return {
+                    'relevant': True,
+                    'confidence': 0.5,
+                    'reason': 'JSON解析失败，默认保留',
+                    'status': 'success'
+                }
+
+        except Exception as e:
+            self.logger.error(f"论文筛选失败: {str(e)}")
+            return {
+                'relevant': True,  # 出错时保留论文
+                'confidence': 0.5,
+                'reason': f'筛选失败: {str(e)}',
+                'status': 'error'
             }
 
 

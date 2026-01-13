@@ -257,6 +257,69 @@ class ArxivScraper:
             except Exception as e:
                 self.logger.error(f"下载 PDF 失败 ({paper['arxiv_id']}): {str(e)}")
 
+    def filter_papers_with_ai(self, papers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        使用 AI 筛选论文
+
+        Args:
+            papers: 论文列表
+
+        Returns:
+            筛选后的论文列表
+        """
+        ai_config = self.config.get('ai', {})
+
+        if not ai_config.get('enable_filter', False):
+            self.logger.debug("AI 筛选未启用，跳过")
+            return papers
+
+        filter_keywords = ai_config.get('filter_keywords', '').strip()
+        if not filter_keywords:
+            self.logger.warning("AI 筛选已启用，但未配置筛选关键词，跳过筛选")
+            return papers
+
+        filter_threshold = float(ai_config.get('filter_threshold', 0.7))
+
+        # 创建 AI 服务
+        ai_service = create_ai_service(ai_config)
+        if not ai_service:
+            self.logger.warning("AI 服务创建失败，跳过筛选")
+            return papers
+
+        self.logger.info(f"开始 AI 智能筛选论文（关键词：{filter_keywords}，阈值：{filter_threshold}）...")
+
+        filtered_papers = []
+        for i, paper in enumerate(papers, 1):
+            try:
+                self.logger.info(f"[{i}/{len(papers)}] 筛选: {paper['title'][:50]}...")
+
+                # 调用 AI 筛选
+                filter_result = ai_service.filter_paper(paper, filter_keywords)
+
+                # 保存筛选结果
+                paper['filter_result'] = filter_result
+
+                # 根据相关性和置信度决定是否保留
+                if filter_result.get('relevant', False) and filter_result.get('confidence', 0.0) >= filter_threshold:
+                    filtered_papers.append(paper)
+                    self.logger.info(
+                        f"  ✓ 保留 (置信度: {filter_result.get('confidence', 0.0):.2f}, "
+                        f"理由: {filter_result.get('reason', 'N/A')[:50]})"
+                    )
+                else:
+                    self.logger.info(
+                        f"  ✗ 过滤 (置信度: {filter_result.get('confidence', 0.0):.2f}, "
+                        f"理由: {filter_result.get('reason', 'N/A')[:50]})"
+                    )
+
+            except Exception as e:
+                self.logger.error(f"筛选失败 ({paper['arxiv_id']}): {str(e)}")
+                # 出错时保留论文（保守策略）
+                filtered_papers.append(paper)
+
+        self.logger.info(f"AI 筛选完成：{len(papers)} → {len(filtered_papers)} 篇论文")
+        return filtered_papers
+
     def process_with_ai(self, papers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
         使用 AI 处理论文（总结和翻译）
@@ -454,6 +517,10 @@ class ArxivScraper:
 
             # 搜索论文
             papers = self.search_papers()
+
+            # AI 智能筛选（在处理前过滤不相关论文）
+            if papers:
+                papers = self.filter_papers_with_ai(papers)
 
             # AI 处理（总结和翻译）
             if papers:
