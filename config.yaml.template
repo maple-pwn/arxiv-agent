@@ -89,6 +89,11 @@ storage:
   cache_file: "./data/papers/cache.json"
   cache_max_items: 5000
 
+  # 是否跳过已处理的论文（基于缓存）
+  # 启用后，会自动跳过缓存中已有完整 AI 处理结果的论文
+  # 适用场景：定期运行时，避免重复处理相同论文，节省 API 成本
+  skip_processed: false
+
   # 【重要】邮件发送成功后自动删除本地文件
   # 启用后会删除 papers 文件和 reports 文件，避免磁盘占满
   # 建议：定时任务场景启用，手动运行时关闭

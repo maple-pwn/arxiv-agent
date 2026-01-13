@@ -32,7 +32,8 @@ class ConfigManager:
             'pdf_dir': './data/pdfs',
             'cache_enabled': True,
             'cache_file': './data/papers/cache.json',
-            'cache_max_items': 5000
+            'cache_max_items': 5000,
+            'skip_processed': False
         },
         'logging': {
             'level': 'INFO',

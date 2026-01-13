@@ -606,6 +606,100 @@ grep "缓存命中" logs/arxiv_scraper.log
 - ✅ **资源管理**：使用 `with ThreadPoolExecutor()` 自动管理线程池
 - ✅ **日志详细**：缓存命中率、并发数、处理进度一目了然
 
+#### 9.5 跳过已处理论文功能 ✅
+
+**功能说明**：通过缓存额外筛除已经完整处理过的论文，避免重复 AI 处理。
+
+**适用场景**：
+- ✅ 定期运行任务（如每日抓取）
+- ✅ 增量更新场景（只处理新论文）
+- ✅ 节省 API 成本（避免重复调用）
+
+**工作原理**：
+
+```yaml
+storage:
+  cache_enabled: true
+  skip_processed: true  # 启用跳过已处理论文
+```
+
+1. **缓存验证**：检查论文是否在缓存中，且 `ai_cache_key` 有效
+2. **完整性检查**：验证所有启用的 AI 功能都有成功的缓存结果
+   - `enable_summary` → 检查 `ai_summary.status == 'success'`
+   - `enable_translation` → 检查 `translation` 存在且非失败状态
+   - `enable_insights` → 检查 `insights.status == 'success'`
+3. **智能跳过**：只跳过缓存完整有效的论文，其他照常处理
+
+**性能收益**：
+
+| 场景 | 不启用 | 启用后 | 效果 |
+|------|--------|--------|------|
+| **每日定时任务** | 处理 50 篇（10 篇重复） | 处理 40 篇 | **节省 20% API 成本** |
+| **多次运行测试** | 每次全量处理 | 仅处理新增论文 | **快 5-10x** |
+| **已有缓存场景** | 重复处理 | 零成本跳过 | **API 成本趋近于 0** |
+
+**代码示例**（`src/arxiv_scraper.py`）：
+
+```python
+def _filter_processed_papers(self, papers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """筛除已处理过的论文（根据缓存）"""
+    if not self.storage_config.get('skip_processed', False):
+        return papers
+
+    unprocessed_papers = []
+    skipped_count = 0
+
+    for paper in papers:
+        cache_entry = self._get_cache_entry(paper)
+
+        # 检查缓存有效性和完整性
+        if cache_entry and cache_entry.get('ai_cache_key') == self.ai_cache_key:
+            has_all_results = self._check_complete_cache(cache_entry)
+            if has_all_results:
+                skipped_count += 1
+                continue
+
+        unprocessed_papers.append(paper)
+
+    self.logger.info(f"已筛除 {skipped_count} 篇已处理论文")
+    return unprocessed_papers
+```
+
+**工作流程集成**：
+
+```python
+# 搜索论文
+papers = self.search_papers()  # 获取 50 篇
+
+# 筛除已处理论文（新增）
+papers = self._filter_processed_papers(papers)  # → 40 篇
+
+# AI 智能筛选
+papers = self.filter_papers_with_ai(papers)  # → 15 篇
+
+# AI 深度处理
+self.process_papers_with_ai(papers)  # 仅处理 15 篇
+```
+
+**配置建议**：
+
+1. **启用场景**：
+   - ✅ 定时任务（crontab/GitHub Actions）
+   - ✅ 长期运行项目
+   - ✅ API 成本敏感
+
+2. **禁用场景**：
+   - ❌ 需要重新生成报告
+   - ❌ 更新了 prompts（需删除缓存）
+   - ❌ 首次运行（无缓存）
+
+**注意事项**：
+
+- 需要 `cache_enabled: true` 才能工作
+- 默认为 `false`（opt-in 机制）
+- 更新 AI 配置（provider/model/prompts）后，缓存会自动失效
+- 日志会显示跳过数量：`已筛除 N 篇已处理论文：M → N 篇`
+
 ### 10. 配置文件优化 ✅
 
 **改进内容**：完全重写 `config.yaml.template`，提升易读性和操作性。
