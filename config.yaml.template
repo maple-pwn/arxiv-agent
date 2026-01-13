@@ -1,41 +1,76 @@
-# ArXiv 论文抓取配置文件模板
+# =====================================================
+# ArXiv 论文抓取工具 - 配置文件模板
+# =====================================================
 # 复制此文件为 config.yaml 并修改相应配置
+# 详细文档：README.md
 
-# ArXiv 搜索配置
+# =====================================================
+# 1. ArXiv 搜索配置
+# =====================================================
 arxiv:
-  # 搜索关键词（支持多个关键词，使用 OR 连接）
+  # 【第一步：定义搜索关键词】
+  # 用于从 ArXiv 搜索论文（宽泛搜索，多捞一些）
+  # 多个关键词之间是 OR 关系，匹配任一关键词即可
   keywords:
     - "machine learning"
     - "deep learning"
     - "neural network"
 
-  # ArXiv 分类（可选，留空则搜索所有分类）
-  # 常用分类：cs.AI, cs.LG, cs.CV, cs.CL, stat.ML
+  # ArXiv 分类代码（可选，留空则搜索所有分类）
+  # 常用分类：
+  #   - cs.AI (人工智能)
+  #   - cs.LG (机器学习)
+  #   - cs.CV (计算机视觉)
+  #   - cs.CL (自然语言处理)
+  #   - stat.ML (统计机器学习)
+  # 完整列表：https://arxiv.org/category_taxonomy
   categories:
     - "cs.AI"
     - "cs.LG"
 
-  # 每次抓取的最大论文数量
+  # 每次抓取的最大论文数量（建议 20-100）
   max_results: 50
 
-  # 排序方式：submittedDate (提交日期), lastUpdatedDate (最后更新日期), relevance (相关性)
+  # ==================== 排序配置 ====================
+
+  # 【方式一：单一排序（简单）】
+  # 单一排序字段：submittedDate, lastUpdatedDate, relevance
   sort_by: "submittedDate"
 
-  # 排序顺序：descending (降序), ascending (升序)
+  # 排序顺序：descending (降序，新→旧), ascending (升序，旧→新)
   sort_order: "descending"
 
-# 调度配置
-schedule:
-  # 是否启用定时任务
-  enabled: true
+  # 【方式二：多级排序（高级）】
+  # 启用多级排序后，会忽略 sort_by 和 sort_order
+  # 按优先级顺序排序：先按第一个条件排序，相同的再按第二个条件排序
+  multi_level_sort:
+    # 优先级1：先按相关度评分排序（高→低）
+    - field: "relevance_score"
+      order: "descending"
+    # 优先级2：相关度相同时，按提交日期排序（新→旧）
+    - field: "submittedDate"
+      order: "descending"
 
-  # 执行时间（24小时制，格式：HH:MM）
-  time: "09:00"
+  # 可用排序字段：
+  #   - submittedDate: 提交日期
+  #   - lastUpdatedDate: 最后更新日期
+  #   - relevance_score: 相关度评分（需启用）
+  #   - title: 标题（字母顺序）
 
-  # 或者使用间隔时间（单位：小时）
-  # interval_hours: 24
+  # ==================== 相关度评分 ====================
 
-# 数据存储配置
+  # 是否启用相关度评分（推荐启用）
+  # 基于搜索关键词自动计算每篇论文的相关度（0.0-1.0）
+  enable_relevance_score: true
+
+  # 说明：
+  # - 相关度评分会显示在报告中
+  # - 可用于多级排序（按相关度优先）
+  # - 帮助快速识别最相关的论文
+
+# =====================================================
+# 2. 数据存储配置
+# =====================================================
 storage:
   # 数据保存路径
   data_dir: "./data/papers"
@@ -43,16 +78,193 @@ storage:
   # 保存格式：json, csv, both
   format: "both"
 
-  # 是否下载 PDF
+  # 是否下载 PDF（会显著增加时间和存储）
   download_pdf: false
 
-  # PDF 保存路径
+  # PDF 保存路径（仅当 download_pdf 为 true 时有效）
   pdf_dir: "./data/pdfs"
 
-  # 邮件发送后自动删除本地文件（包括 papers 和 reports）
+  # 【重要】邮件发送成功后自动删除本地文件
+  # 启用后会删除 papers 文件和 reports 文件，避免磁盘占满
+  # 建议：定时任务场景启用，手动运行时关闭
   auto_cleanup: true
 
-# 日志配置
+# =====================================================
+# 3. AI 功能配置
+# =====================================================
+ai:
+  # 是否启用 AI 功能（关闭后仅抓取原始数据）
+  enabled: true
+
+  # AI 服务提供商：openai, anthropic (Claude), ollama
+  provider: "openai"
+
+  # ==================== AI 功能开关 ====================
+
+  # 是否启用论文总结（4个维度：核心观点、研究方法、关键结果、应用价值）
+  enable_summary: true
+
+  # 是否翻译摘要为中文
+  enable_translation: true
+
+  # 是否提取关键洞察（3-5个核心创新点）
+  enable_insights: true
+
+  # ==================== AI 智能筛选（可选）====================
+
+  # 【第二步：精准筛选（可选）】
+  # 是否启用 AI 智能筛选（在处理前过滤不相关论文）
+  #
+  # 使用场景：
+  #   - ArXiv 搜索关键词太宽泛，返回很多不相关论文
+  #   - 希望聚焦特定研究方向或应用场景
+  #   - 需要降低 AI 处理成本（只处理相关论文）
+  #
+  # 工作流程：
+  #   ArXiv搜索(50篇) → AI筛选(保留15篇) → AI深度处理(15篇)
+  enable_filter: false
+
+  # AI 筛选关键词（用于判断论文相关性）
+  #
+  # 说明：
+  #   - 与 arxiv.keywords 不同：
+  #     * arxiv.keywords: 宽泛搜索，从ArXiv获取候选论文
+  #     * filter_keywords: 精准筛选，过滤掉不相关的论文
+  #
+  #   - 示例：
+  #     * arxiv.keywords: ["reinforcement learning"]  (搜索所有强化学习论文)
+  #     * filter_keywords: "游戏AI, 强化学习在游戏中的应用"  (只保留游戏相关的)
+  #
+  filter_keywords: ""
+
+  # AI 筛选置信度阈值（0.0-1.0，只保留置信度高于此值的论文）
+  # 建议值：
+  #   - 0.6: 宽松（保留较多论文）
+  #   - 0.7: 平衡（推荐）
+  #   - 0.8: 严格（只保留高度相关论文）
+  filter_threshold: 0.7
+
+  # ==================== Markdown 报告配置 ====================
+
+  # 是否生成 Markdown 报告
+  # 注意：要通过邮件接收报告，需要同时满足：
+  #   1. send_markdown_report: true  (生成报告)
+  #   2. notification.enabled: true  (启用通知)
+  #   3. notification.method: "email" (选择邮件方式)
+  send_markdown_report: false
+
+  # Markdown 报告保存路径
+  markdown_dir: "./data/reports"
+
+  # ==================== OpenAI 配置 ====================
+
+  openai:
+    # API 密钥（必填）
+    api_key: "your-api-key-here"
+
+    # 模型选择
+    #   - gpt-3.5-turbo: 便宜，速度快，适合大批量
+    #   - gpt-4o-mini: 性价比高
+    #   - gpt-4o: 质量最高，价格较贵
+    model: "gpt-3.5-turbo"
+
+    # API 端点
+    #   - OpenAI 官方: "https://api.openai.com/v1"
+    #   - 硅基流动（国内）: "https://api.siliconflow.cn/v1"
+    base_url: "https://api.openai.com/v1"
+
+    # 最大输出 token 数
+    max_tokens: 1000
+
+    # 温度参数（0-2），控制随机性
+    temperature: 0.7
+
+  # ==================== Anthropic/Claude 配置 ====================
+
+  anthropic:
+    api_key: "your-api-key-here"
+    model: "claude-3-5-sonnet-20241022"
+    base_url: "https://api.anthropic.com/v1"
+    max_tokens: 1000
+    temperature: 0.7
+
+  # ==================== Ollama 本地模型配置 ====================
+
+  ollama:
+    # 模型名称（需要提前下载）
+    #   - llama2
+    #   - qwen2.5:7b
+    #   - deepseek-r1:7b
+    model: "llama2"
+
+    # Ollama 服务地址
+    base_url: "http://localhost:11434"
+
+# =====================================================
+# 4. 通知配置（邮件/Webhook）
+# =====================================================
+notification:
+  # 是否启用通知
+  # 注意：要发送邮件报告，需要同时：
+  #   1. notification.enabled: true
+  #   2. notification.method: "email"
+  #   3. ai.send_markdown_report: true
+  enabled: false
+
+  # 通知方式：email 或 webhook
+  method: "email"
+
+  # ==================== 邮件配置 ====================
+
+  email:
+    # SMTP 服务器地址
+    smtp_server: "smtp.gmail.com"
+
+    # SMTP 端口（一般是 587 或 465）
+    smtp_port: 587
+
+    # 发件人邮箱
+    sender: "your-email@gmail.com"
+
+    # 邮箱密码或应用专用密码
+    #
+    # Gmail: 需要生成应用专用密码
+    #   1. 开启两步验证：https://myaccount.google.com/security
+    #   2. 生成密码：https://myaccount.google.com/apppasswords
+    #
+    # QQ邮箱: 需要获取授权码
+    #   - 设置 → 账户 → 开启SMTP服务 → 生成授权码
+    password: "your-app-password"
+
+    # 收件人列表（可多个）
+    recipients:
+      - "recipient@example.com"
+
+  # ==================== Webhook 配置 ====================
+
+  webhook:
+    # Webhook 接收地址
+    url: "https://your-webhook-url.com/arxiv"
+
+    # HTTP 方法
+    method: "POST"
+
+# =====================================================
+# 5. 定时任务配置
+# =====================================================
+schedule:
+  # 是否启用定时任务（推荐使用系统 crontab 替代）
+  enabled: false
+
+  # 每天执行时间（24小时制，格式：HH:MM）
+  time: "09:00"
+
+  # 是否在启动时立即执行一次
+  run_on_start: false
+
+# =====================================================
+# 6. 日志配置
+# =====================================================
 logging:
   # 日志级别：DEBUG, INFO, WARNING, ERROR, CRITICAL
   level: "INFO"
@@ -66,82 +278,32 @@ logging:
   # 日志文件最大大小（MB）
   max_size: 10
 
-  # 保留的日志文件数量
+  # 保留的日志文件数量（日志轮转）
   backup_count: 5
 
-# 通知配置（可选）
-notification:
-  # 是否启用通知
-  enabled: false
-
-  # 通知方式：email, webhook
-  method: "email"
-
-  # 邮件配置
-  email:
-    smtp_server: "smtp.gmail.com"
-    smtp_port: 587
-    sender: "your-email@gmail.com"
-    password: "your-password"
-    recipients:
-      - "recipient@example.com"
-
-  # Webhook 配置
-  webhook:
-    url: "https://your-webhook-url.com"
-    method: "POST"
-
-# AI 功能配置（可选）
-ai:
-  # 是否启用 AI 功能（论文总结和翻译）
-  enabled: false
-
-  # AI 服务提供商：openai, anthropic (claude), ollama
-  provider: "openai"
-
-  # 是否总结论文
-  enable_summary: true
-
-  # 是否翻译摘要
-  enable_translation: true
-
-  # 是否提取关键洞察（Key Insights）
-  enable_insights: true
-
-  # 是否启用 AI 智能筛选（在处理前过滤不相关论文）
-  enable_filter: false
-
-  # AI 筛选关键词（用于判断论文相关性）
-  # 示例："强化学习应用, 多智能体系统, 游戏AI"
-  filter_keywords: ""
-
-  # AI 筛选置信度阈值（0.0-1.0，只保留置信度高于此值的论文）
-  # 建议值：0.6-0.8，越高越严格
-  filter_threshold: 0.7
-
-  # 是否生成 Markdown 报告并发送邮件
-  send_markdown_report: false
-
-  # Markdown 报告保存路径
-  markdown_dir: "./data/reports"
-
-  # OpenAI 配置
-  openai:
-    api_key: "your-openai-api-key"
-    model: "gpt-3.5-turbo"  # 或 gpt-4, gpt-4-turbo-preview
-    base_url: "https://api.openai.com/v1"  # 可自定义为兼容的 API 地址
-    max_tokens: 1000
-    temperature: 0.7
-
-  # Anthropic Claude 配置
-  anthropic:
-    api_key: "your-anthropic-api-key"
-    model: "claude-3-5-sonnet-20241022"  # 或其他 Claude 模型
-    base_url: "https://api.anthropic.com/v1"
-    max_tokens: 1000
-    temperature: 0.7
-
-  # Ollama 本地模型配置
-  ollama:
-    model: "llama2"  # 或其他本地模型：mistral, codellama 等
-    base_url: "http://localhost:11434"  # Ollama 服务地址
+# =====================================================
+# 快速配置指南
+# =====================================================
+#
+# 【场景1：本地测试】
+# 1. 配置 arxiv.keywords（搜索关键词）
+# 2. 配置 ai.openai.api_key
+# 3. 设置 ai.send_markdown_report: false
+# 4. 运行：python main.py
+#
+# 【场景2：邮件推送】
+# 1. 配置 arxiv.keywords
+# 2. 配置 ai.openai.api_key
+# 3. 设置 ai.send_markdown_report: true
+# 4. 设置 notification.enabled: true
+# 5. 设置 notification.method: "email"
+# 6. 配置 notification.email（SMTP信息）
+# 7. 运行：python main.py
+#
+# 【场景3：精准筛选】
+# 1. 配置宽泛的 arxiv.keywords（如 "machine learning"）
+# 2. 启用 ai.enable_filter: true
+# 3. 配置精准的 ai.filter_keywords（如 "医疗AI, 疾病诊断"）
+# 4. 其他同场景2
+#
+# =====================================================

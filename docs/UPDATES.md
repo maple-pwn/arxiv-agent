@@ -170,6 +170,289 @@ ai:
 - `docs/CUSTOM_PROMPTS.md` - Prompt自定义详细教程
 - `docs/UPDATES.md` - 本更新说明文档
 
+### 6. 多级排序功能 ✅
+
+**新增功能**：支持按多个字段依次排序论文，满足复杂排序需求。
+
+**功能特点**：
+- 支持多级排序（先按字段A排序，相同的再按字段B排序）
+- 每级排序可独立设置升序/降序
+- 兼容原有单一排序方式
+
+**相关文件**：
+- `src/arxiv_scraper.py` - 新增 `_apply_multi_level_sort()` 方法
+- `config.yaml.template` - 新增 `multi_level_sort` 配置
+
+**配置示例**：
+
+```yaml
+arxiv:
+  # 方式一：单一排序（兼容旧版）
+  sort_by: "submittedDate"
+  sort_order: "descending"
+
+  # 方式二：多级排序（新功能）
+  multi_level_sort:
+    # 优先级1：先按相关度排序
+    - field: "relevance_score"
+      order: "descending"
+    # 优先级2：相关度相同时按时间排序
+    - field: "submittedDate"
+      order: "descending"
+```
+
+**可用排序字段**：
+- `submittedDate`: 提交日期
+- `lastUpdatedDate`: 最后更新日期
+- `relevance_score`: 相关度评分（需启用）
+- `title`: 标题
+
+**使用场景**：
+- 优先展示高相关度的最新论文
+- 先按领域分类，再按时间排序
+- 复杂的排序逻辑需求
+
+### 7. 论文相关度评分 ✅
+
+**新增功能**：自动计算每篇论文与搜索关键词的相关度评分（0.0-1.0）。
+
+**功能特点**：
+- 基于关键词在标题、摘要、分类中的匹配程度
+- 自动计算评分（无需额外API调用，节省成本）
+- 评分显示在报告中，帮助快速识别相关论文
+- 可用于多级排序
+
+**相关文件**：
+- `src/arxiv_scraper.py` - 新增 `_calculate_relevance_scores()` 方法
+- `config.yaml.template` - 新增 `enable_relevance_score` 配置
+
+**评分算法**：
+
+```
+相关度 = (标题匹配分 + 摘要匹配分 + 分类匹配分) / 总分
+
+权重：
+- 标题匹配：5.0
+- 摘要匹配：3.0（支持多次匹配累计）
+- 分类匹配：2.0
+```
+
+**配置示例**：
+
+```yaml
+arxiv:
+  keywords: ["machine learning", "deep learning"]
+  enable_relevance_score: true  # 启用相关度评分
+```
+
+**输出示例**：
+
+```
+论文1: "Deep Learning for Computer Vision"
+  相关度评分: 0.850
+  理由: 标题匹配"deep learning"，摘要多次出现相关词汇
+
+论文2: "Quantum Computing Applications"
+  相关度评分: 0.200
+  理由: 仅摘要中边缘提及"learning"
+```
+
+**使用场景**：
+- 快速识别最相关的论文
+- 与多级排序结合，优先展示高相关论文
+- 在报告中显示相关度，辅助决策
+
+### 8. 配置迁移工具 ✅
+
+**新增功能**：智能配置文件迁移和合并工具，解决配置更新时覆盖用户自定义值的问题。
+
+**功能特点**：
+- 智能合并：保留用户修改的配置，添加模板中的新配置项
+- 自动备份：迁移前自动创建带时间戳的备份文件
+- 变更追踪：详细报告显示新增、保留、自定义的配置项
+- 配置验证：检查必要配置项和占位符值
+- 干运行模式：预览变更而不修改文件
+- 主程序集成：`python main.py --init` 提供智能合并选项
+
+**相关文件**：
+- `config_migration.py` - 配置迁移工具（新增，381行）
+- `main.py` - 集成迁移工具到初始化流程
+- `README.md` - 添加迁移工具使用文档
+
+**核心算法**：
+
+```python
+def merge_configs(template, existing, path=""):
+    """递归合并配置"""
+    merged = {}
+
+    # 1. 遍历模板中的所有键
+    for key, template_value in template.items():
+        if key in existing:
+            existing_value = existing[key]
+
+            # 如果两者都是字典，递归合并
+            if isinstance(template_value, dict) and isinstance(existing_value, dict):
+                merged[key] = merge_configs(template_value, existing_value, f"{path}.{key}")
+
+            # 检查用户是否修改了默认值
+            elif is_user_modified(template_value, existing_value):
+                merged[key] = existing_value  # 保留用户配置
+            else:
+                merged[key] = template_value  # 使用模板值
+        else:
+            # 模板中的新配置项
+            merged[key] = template_value
+
+    # 2. 保留用户自定义的配置项
+    for key in existing:
+        if key not in template:
+            merged[key] = existing[key]
+
+    return merged
+```
+
+**使用方法**：
+
+```bash
+# 预览变更（不修改文件）
+python config_migration.py --dry-run
+
+# 执行迁移（自动备份）
+python config_migration.py
+
+# 验证配置文件
+python config_migration.py --validate
+
+# 指定自定义路径
+python config_migration.py --template custom.yaml --config my_config.yaml
+```
+
+**迁移流程**：
+
+1. **自动检测**：程序启动时检测模板更新，提示运行迁移
+2. **备份原配置**：创建 `config.yaml.backup_20260113_120000`
+3. **智能合并**：
+   - 保留用户修改的值（如API密钥）
+   - 添加模板新增的配置项
+   - 保留用户自定义的配置项
+4. **生成报告**：显示新增、保留、自定义的配置统计
+5. **写入文件**：保存合并后的配置
+
+**占位符检测**：
+
+工具能识别常见占位符，判断用户是否填写了真实值：
+- `your-api-key` → 识别为占位符
+- `sk-xxxxx...` → 识别为用户填写的真实值
+- `your-email@gmail.com` → 识别为占位符
+- `user@gmail.com` → 识别为真实邮箱
+
+**输出示例**：
+
+```
+============================================================
+配置文件迁移工具
+============================================================
+📄 模板文件: config.yaml.template
+📄 现有配置: config.yaml
+✅ 已备份现有配置: config.yaml.backup_20260113_120000
+
+⏳ 正在合并配置...
+
+============================================================
+变更摘要
+============================================================
+📊 变更统计:
+  - 新增配置项: 5
+  - 保留用户配置: 12
+  - 保留自定义配置: 2
+  - 总计: 19
+
+📋 详细变更:
+  + 新增配置项: arxiv.enable_relevance_score = true
+  + 新增配置项: arxiv.multi_level_sort = [...]
+  + 新增配置项: ai.enable_filter = false
+  + 新增配置项: ai.filter_keywords = ""
+  + 新增配置项: ai.filter_threshold = 0.7
+  ✓ 保留用户配置: ai.openai.api_key = sk-xxxxx...
+  ✓ 保留用户配置: notification.email.sender = user@example.com
+  ★ 保留自定义配置: custom_field
+
+✅ 配置文件已更新: config.yaml
+📦 备份文件: config.yaml.backup_20260113_120000
+```
+
+**与主程序集成**：
+
+运行 `python main.py --init` 时，如果配置文件已存在，会提供三个选项：
+
+```
+配置文件 config.yaml 已存在
+
+请选择操作:
+  1. 智能合并（推荐）- 保留现有配置，添加模板中的新配置项
+  2. 覆盖 - 使用模板完全覆盖现有配置
+  3. 取消
+
+请输入选项 (1/2/3):
+```
+
+选择选项1会自动调用配置迁移工具进行智能合并。
+
+**使用场景**：
+- 项目更新后添加了新配置项
+- 配置模板结构调整
+- 需要验证配置完整性
+- 定期同步最新配置
+
+### 9. 配置文件优化 ✅
+
+**改进内容**：完全重写 `config.yaml.template`，提升易读性和操作性。
+
+**主要优化**：
+
+1. **清晰的注释分组**
+   - 使用分隔线和标题将配置分为6大模块
+   - 每个配置项都有详细说明和示例
+
+2. **解决配置混淆问题**
+   - 明确区分 `arxiv.keywords`（宽泛搜索）和 `ai.filter_keywords`（精准筛选）
+   - 添加配置关联说明（如邮件推送需要同时配置3个项）
+
+3. **快速配置指南**
+   - 文件末尾添加3种常用场景的配置步骤
+   - 场景1：本地测试
+   - 场景2：邮件推送
+   - 场景3：精准筛选
+
+**改进前后对比**：
+
+```yaml
+# 改进前：配置分散，注释简单
+notification:
+  enabled: false
+ai:
+  send_markdown_report: false
+
+# 改进后：明确配置关联
+notification:
+  # 注意：要发送邮件报告，需要同时：
+  #   1. notification.enabled: true
+  #   2. notification.method: "email"
+  #   3. ai.send_markdown_report: true
+  enabled: false
+```
+
+**用户反馈问题修复**：
+- ✅ 两次关键词输入混淆 → 添加详细说明和对比
+- ✅ 邮件配置复杂 → 添加步骤化指南和注释
+
+**新增内容**：
+- 多级排序配置模板
+- 相关度评分配置
+- 快速配置指南（3种场景）
+- 更详细的AI服务商配置说明
+
 ## 配置示例
 
 ### 完整的config.yaml示例
