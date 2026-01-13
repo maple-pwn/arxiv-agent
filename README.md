@@ -15,7 +15,7 @@
 
 ### Docker 部署（推荐）
 
-\`\`\`bash
+```bash
 # 1. 克隆项目
 git clone <repository-url>
 cd paper-agent
@@ -26,11 +26,11 @@ cp config.yaml.template config.yaml
 
 # 3. 启动
 docker-compose up -d
-\`\`\`
+```
 
 ### 本地部署
 
-\`\`\`bash
+```bash
 # 1. 安装依赖
 pip install -r requirements.txt
 
@@ -40,13 +40,13 @@ cp config.yaml.template config.yaml
 
 # 3. 运行
 python main.py
-\`\`\`
+```
 
 ## 配置说明
 
 ### 基本配置
 
-\`\`\`yaml
+```yaml
 arxiv:
   keywords:
     - "machine learning"
@@ -55,13 +55,13 @@ arxiv:
     - "cs.AI"
     - "cs.LG"
   max_results: 50
-\`\`\`
+```
 
 ### AI 配置
 
 #### 使用 OpenAI 或兼容 API
 
-\`\`\`yaml
+```yaml
 ai:
   enabled: true
   provider: "openai"
@@ -74,11 +74,11 @@ ai:
     api_key: "your-api-key"
     model: "gpt-3.5-turbo"
     base_url: "https://api.openai.com/v1"
-\`\`\`
+```
 
 #### 使用硅基流动 API
 
-\`\`\`yaml
+```yaml
 ai:
   enabled: true
   provider: "openai"
@@ -86,31 +86,31 @@ ai:
     api_key: "your-siliconflow-api-key"
     model: "deepseek-ai/DeepSeek-V3"
     base_url: "https://api.siliconflow.cn/v1"  # 注意不要包含 /chat/completions
-\`\`\`
+```
 
 #### 使用 Claude
 
-\`\`\`yaml
+```yaml
 ai:
   provider: "anthropic"
   anthropic:
     api_key: "your-anthropic-api-key"
     model: "claude-3-5-sonnet-20241022"
-\`\`\`
+```
 
 #### 使用本地 Ollama
 
-\`\`\`yaml
+```yaml
 ai:
   provider: "ollama"
   ollama:
     model: "llama2"
     base_url: "http://localhost:11434"
-\`\`\`
+```
 
 ### 邮件配置
 
-\`\`\`yaml
+```yaml
 notification:
   enabled: true
   method: "email"
@@ -121,23 +121,23 @@ notification:
     password: "your-app-password"
     recipients:
       - "recipient@example.com"
-\`\`\`
+```
 
 ### 定时任务
 
-\`\`\`yaml
+```yaml
 schedule:
   enabled: true
   time: "09:00"  # 每天09:00执行
-\`\`\`
+```
 
 ### 自动清理配置
 
-\`\`\`yaml
+```yaml
 storage:
   # 邮件发送后自动删除本地文件（包括 papers 和 reports）
   auto_cleanup: true
-\`\`\`
+```
 
 **说明**：
 - 启用后，邮件发送成功将自动删除本地的 papers 文件（JSON/CSV）和 reports 文件（Markdown）
@@ -149,7 +149,7 @@ storage:
 
 ### JSON 格式
 
-保存在 \`./data/papers/\` 目录，包含：
+保存在 `./data/papers/` 目录，包含：
 - 论文基本信息
 - AI 总结
 - 中文翻译
@@ -157,7 +157,7 @@ storage:
 
 ### Markdown 报告
 
-保存在 \`./data/reports/\` 目录，包含：
+保存在 `./data/reports/` 目录，包含：
 - 📋 基本信息（标题、作者、ArXiv ID、PDF链接）
 - 💡 关键洞察（3-5个核心创新点）
 - 📝 原文摘要
@@ -170,7 +170,7 @@ storage:
 
 ## 项目结构
 
-\`\`\`
+```
 paper-agent/
 ├── config.yaml          # 配置文件
 ├── main.py              # 主程序入口
@@ -186,29 +186,29 @@ paper-agent/
 │   ├── papers/          # 论文JSON/CSV
 │   └── reports/         # Markdown报告
 └── logs/                # 日志文件
-\`\`\`
+```
 
 ## 使用示例
 
 ### 单次运行
 
-\`\`\`bash
+```bash
 python main.py
-\`\`\`
+```
 
 ### 定时任务模式
 
-编辑 \`config.yaml\` 启用定时任务：
-\`\`\`yaml
+编辑 `config.yaml` 启用定时任务：
+```yaml
 schedule:
   enabled: true
   time: "09:00"
-\`\`\`
+```
 
 然后运行：
-\`\`\`bash
+```bash
 python main.py
-\`\`\`
+```
 
 ## 常见问题
 
@@ -216,7 +216,7 @@ python main.py
 
 检查：
 - API key 是否正确
-- base_url 是否正确（不要包含 \`/chat/completions\`）
+- base_url 是否正确（不要包含 `/chat/completions`）
 - 网络连接是否正常
 
 ### 2. 邮件发送失败
@@ -228,7 +228,7 @@ python main.py
 
 ### 3. Docker 部署问题
 
-\`\`\`bash
+```bash
 # 查看日志
 docker-compose logs -f
 
@@ -237,7 +237,7 @@ docker-compose build --no-cache
 
 # 重启服务
 docker-compose restart
-\`\`\`
+```
 
 ## API 成本估算
 
