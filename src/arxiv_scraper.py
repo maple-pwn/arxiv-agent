@@ -249,6 +249,62 @@ class ArxivScraper:
 
         return unique_papers
 
+    def _filter_processed_papers(self, papers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        筛除已处理过的论文（根据缓存）
+
+        Args:
+            papers: 论文列表
+
+        Returns:
+            未处理过的论文列表
+        """
+        if not self.storage_config.get('skip_processed', False):
+            return papers
+
+        if not self.cache_enabled:
+            self.logger.debug("缓存未启用，跳过已处理论文筛除")
+            return papers
+
+        ai_config = self.config.get('ai', {})
+        enable_summary = ai_config.get('enable_summary', True)
+        enable_translation = ai_config.get('enable_translation', True)
+        enable_insights = ai_config.get('enable_insights', True)
+
+        unprocessed_papers = []
+        skipped_count = 0
+
+        for paper in papers:
+            cache_entry = self._get_cache_entry(paper)
+
+            # 检查是否有有效的缓存
+            if not cache_entry:
+                unprocessed_papers.append(paper)
+                continue
+
+            cache_valid = cache_entry.get('ai_cache_key') == self.ai_cache_key
+
+            # 检查是否所有需要的内容都已缓存
+            has_summary = enable_summary and cache_entry.get('ai_summary', {}).get('status') == 'success'
+            has_translation = enable_translation and bool(cache_entry.get('translation')) and not str(cache_entry.get('translation', '')).startswith('翻译失败')
+            has_insights = enable_insights and cache_entry.get('insights', {}).get('status') == 'success'
+
+            # 如果缓存有效且所有需要的内容都已缓存，则跳过
+            if cache_valid and (
+                (enable_summary and has_summary or not enable_summary) and
+                (enable_translation and has_translation or not enable_translation) and
+                (enable_insights and has_insights or not enable_insights)
+            ):
+                skipped_count += 1
+                self.logger.debug(f"跳过已处理论文: {paper.get('title', 'N/A')[:50]}...")
+            else:
+                unprocessed_papers.append(paper)
+
+        if skipped_count > 0:
+            self.logger.info(f"已筛除 {skipped_count} 篇已处理论文：{len(papers)} → {len(unprocessed_papers)} 篇")
+
+        return unprocessed_papers
+
     def _get_max_workers(self, ai_config: Dict[str, Any], total_tasks: int) -> int:
         """根据配置和任务量获取并发数"""
         try:
@@ -1041,6 +1097,10 @@ class ArxivScraper:
 
             # 搜索论文
             papers = self.search_papers()
+
+            # 筛除已处理过的论文（根据缓存）
+            if papers:
+                papers = self._filter_processed_papers(papers)
 
             # AI 智能筛选（在处理前过滤不相关论文）
             if papers:
