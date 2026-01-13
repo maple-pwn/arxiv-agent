@@ -10,7 +10,7 @@
 
 **解决方案**：
 - 增加邮件发送重试机制（最多3次，每次间隔5秒）
-- 添加Webhook方式发送报告（推荐用于Serverless环境）
+- 添加Webhook方式发送报告
 - 优化错误提示和诊断信息
 
 **相关文件**：
@@ -18,11 +18,27 @@
 - `src/arxiv_scraper.py` - 更新邮件发送逻辑
 
 **使用方法**：
+
+邮件方式（带重试）：
 ```yaml
 # config.yaml
 notification:
   enabled: true
-  method: webhook  # 或 email
+  method: email
+  email:
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    sender: "your@gmail.com"
+    password: "your_app_password"
+    recipients:
+      - "recipient@example.com"
+```
+
+Webhook方式（推荐）：
+```yaml
+notification:
+  enabled: true
+  method: webhook
   webhook:
     url: "https://your-webhook-endpoint.com/arxiv"
     method: "POST"
@@ -60,72 +76,7 @@ notification:
 可应用于...
 ```
 
-### 3. 环境变量支持（Serverless部署准备） ✅
-
-**新增功能**：
-- 支持通过环境变量配置所有参数
-- 环境变量优先级高于config.yaml
-- 完善的默认配置
-
-**相关文件**：
-- `src/config_loader.py` - 新增配置加载器
-- `.env.example` - 环境变量示例
-- `serverless_handler.py` - Serverless函数入口
-
-**支持的环境变量**：
-```bash
-# ArXiv配置
-ARXIV_KEYWORDS=machine learning,deep learning
-ARXIV_MAX_RESULTS=10
-
-# AI配置
-OPENAI_API_KEY=sk-...
-AI_PROVIDER=openai
-
-# 邮件配置
-EMAIL_SMTP_SERVER=smtp.gmail.com
-EMAIL_SENDER=your@email.com
-EMAIL_PASSWORD=your_password
-EMAIL_RECIPIENTS=recipient1@email.com,recipient2@email.com
-
-# Webhook配置
-WEBHOOK_URL=https://your-webhook.com
-NOTIFICATION_METHOD=webhook
-```
-
-### 4. Serverless部署支持 ✅
-
-**新增文件**：
-- `serverless.yml` - Serverless Framework配置
-- `serverless_handler.py` - Lambda/函数计算入口
-- `docs/SERVERLESS_DEPLOYMENT.md` - 详细部署指南
-
-**支持平台**：
-- ✅ AWS Lambda
-- ✅ 阿里云函数计算
-- ✅ 腾讯云SCF
-- ✅ 其他Serverless平台
-
-**特性**：
-- 定时触发（Cron表达式）
-- 环境变量配置
-- 自动依赖打包
-- 成本优化（在免费额度内）
-
-**快速部署**：
-```bash
-# 1. 配置环境变量
-cp .env.example .env
-# 编辑.env文件
-
-# 2. 部署
-serverless deploy
-
-# 3. 测试
-serverless invoke -f arxivScraper
-```
-
-### 5. Prompt自定义功能 ✅
+### 3. Prompt自定义功能 ✅
 
 **新增功能**：
 - 将所有AI Prompt提取到独立配置文件
@@ -160,10 +111,62 @@ custom:
       4. 商业潜力
 ```
 
-### 6. 文档完善 ✅
+### 4. AI智能筛选功能 ✅
+
+**新增功能**：在AI处理前，通过AI判断论文与用户关键词的相关性，过滤不相关论文。
+
+**功能特点**：
+- 基于用户自定义关键词进行相关性判断
+- 可配置置信度阈值（0.0-1.0）
+- 节省AI处理成本（只处理相关论文）
+- 提升报告质量（过滤无关内容）
+- 保守策略：出错时默认保留论文
+
+**相关文件**：
+- `prompts/prompts.yaml` - 新增 `filter` prompt模板
+- `src/ai_service.py` - 新增 `filter_paper()` 方法
+- `src/arxiv_scraper.py` - 新增 `filter_papers_with_ai()` 方法
+- `config.yaml.template` - 新增筛选配置项
+
+**配置示例**：
+
+```yaml
+ai:
+  # 启用AI智能筛选
+  enable_filter: true
+
+  # 筛选关键词（用逗号分隔）
+  filter_keywords: "强化学习应用, 游戏AI, 多智能体系统"
+
+  # 置信度阈值（0.6-0.8推荐）
+  filter_threshold: 0.7
+```
+
+**工作流程**：
+1. ArXiv搜索论文 → 获得50篇
+2. AI智能筛选 → 保留15篇相关论文
+3. AI深度处理 → 总结、翻译、提取洞察
+4. 生成报告 → 只包含15篇高相关性论文
+
+**使用场景**：
+- ArXiv搜索关键词太宽泛，返回很多不相关论文
+- 希望聚焦特定研究方向或应用场景
+- 需要降低AI处理成本（只处理相关论文）
+
+**效果对比**：
+
+```
+# 未启用筛选
+搜索到50篇论文 → AI处理50篇 → 成本：$0.10
+
+# 启用筛选（阈值0.7）
+搜索到50篇论文 → AI筛选50篇 → 保留15篇 → AI处理15篇 → 成本：$0.05
+节省成本：50% + 报告质量提升
+```
+
+### 5. 文档完善 ✅
 
 新增文档：
-- `docs/SERVERLESS_DEPLOYMENT.md` - Serverless部署完整指南
 - `docs/CUSTOM_PROMPTS.md` - Prompt自定义详细教程
 - `docs/UPDATES.md` - 本更新说明文档
 
@@ -227,17 +230,7 @@ notification:
 python main.py --schedule
 ```
 
-### 场景2：Serverless云端部署
-
-适合希望零运维成本的用户：
-
-```bash
-# 1. 配置.env环境变量
-# 2. 部署到云端
-serverless deploy
-```
-
-### 场景3：CI/CD集成
+### 场景2：CI/CD集成
 
 适合集成到开发流程的用户：
 
@@ -252,11 +245,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+      - name: Setup Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.9'
+      - name: Install dependencies
+        run: pip install -r requirements.txt
       - name: Run ArXiv Scraper
-        env:
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          WEBHOOK_URL: ${{ secrets.WEBHOOK_URL }}
-        run: python serverless_handler.py
+        run: python main.py
 ```
 
 ## 性能优化
@@ -273,11 +269,11 @@ jobs:
 - ✅ 仅在邮件成功后删除
 - ✅ 失败时保留文件供调试
 
-### 3. Serverless优化
+### 3. AI处理
 
-- ✅ 依赖包大小优化
-- ✅ 冷启动时间优化
-- ✅ 内存和超时配置建议
+- ✅ 结构化prompt提升质量
+- ✅ 可自定义prompt模板
+- ✅ 支持多种AI服务商
 
 ## 常见问题
 
@@ -295,13 +291,9 @@ notification:
 
 A2: 编辑 `prompts/prompts.yaml` 文件，参考 `docs/CUSTOM_PROMPTS.md`
 
-### Q3: Serverless部署成本如何？
+### Q3: 如何在现有项目上更新？
 
-A3: 基本在免费额度内（每月100万次请求）。详见 `docs/SERVERLESS_DEPLOYMENT.md`
-
-### Q4: 如何在现有项目上更新？
-
-A4:
+A3:
 ```bash
 git pull origin main
 pip install -r requirements.txt --upgrade
@@ -311,7 +303,7 @@ pip install -r requirements.txt --upgrade
 
 未来可能的功能（欢迎贡献）：
 
-- [ ] 支持更多云平台（Google Cloud Functions、Azure Functions）
+- [ ] 支持更多AI提供商（Google Gemini、Cohere等）
 - [ ] 支持对象存储（S3、OSS）
 - [ ] 支持数据库存储（MongoDB、PostgreSQL）
 - [ ] Web管理界面

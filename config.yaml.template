@@ -108,6 +108,17 @@ ai:
   # 是否提取关键洞察（Key Insights）
   enable_insights: true
 
+  # 是否启用 AI 智能筛选（在处理前过滤不相关论文）
+  enable_filter: false
+
+  # AI 筛选关键词（用于判断论文相关性）
+  # 示例："强化学习应用, 多智能体系统, 游戏AI"
+  filter_keywords: ""
+
+  # AI 筛选置信度阈值（0.0-1.0，只保留置信度高于此值的论文）
+  # 建议值：0.6-0.8，越高越严格
+  filter_threshold: 0.7
+
   # 是否生成 Markdown 报告并发送邮件
   send_markdown_report: false
 

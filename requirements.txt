@@ -19,8 +19,5 @@ python-dateutil>=2.8.0
 # 日志增强
 colorlog>=6.7.0
 
-# 环境变量管理（Serverless部署）
-python-dotenv>=1.0.0
-
 # 可选依赖（用于 Markdown 转 HTML，非必需）
 # markdown>=3.4.0
