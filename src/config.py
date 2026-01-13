@@ -29,7 +29,10 @@ class ConfigManager:
             'data_dir': './data/papers',
             'format': 'both',
             'download_pdf': False,
-            'pdf_dir': './data/pdfs'
+            'pdf_dir': './data/pdfs',
+            'cache_enabled': True,
+            'cache_file': './data/papers/cache.json',
+            'cache_max_items': 5000
         },
         'logging': {
             'level': 'INFO',

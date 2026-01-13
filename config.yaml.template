@@ -84,6 +84,11 @@ storage:
   # PDF 保存路径（仅当 download_pdf 为 true 时有效）
   pdf_dir: "./data/pdfs"
 
+  # 缓存配置（用于复用 AI 处理结果，减少成本）
+  cache_enabled: true
+  cache_file: "./data/papers/cache.json"
+  cache_max_items: 5000
+
   # 【重要】邮件发送成功后自动删除本地文件
   # 启用后会删除 papers 文件和 reports 文件，避免磁盘占满
   # 建议：定时任务场景启用，手动运行时关闭
@@ -98,6 +103,14 @@ ai:
 
   # AI 服务提供商：openai, anthropic (Claude), ollama
   provider: "openai"
+
+  # 并发与重试配置
+  # max_workers: AI 并发处理的线程数
+  # request_timeout: 单次请求超时时间（秒）
+  max_workers: 4
+  max_retries: 3
+  backoff_factor: 0.5
+  request_timeout: 60
 
   # ==================== AI 功能开关 ====================
 

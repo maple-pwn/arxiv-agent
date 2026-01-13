@@ -17,7 +17,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 from src.config import ConfigManager
 from src.arxiv_scraper import ArxivScraper
-from src.utils import setup_logging, send_notification, format_paper_summary, ensure_directories
+from src.utils import setup_logging, send_notification, ensure_directories
 from config_migration import ConfigMigration
 
 
@@ -41,9 +41,16 @@ def run_scraper(config_manager: ConfigManager) -> None:
         if result['success']:
             notification_config = config_manager.get('notification', {})
             if notification_config.get('enabled', False):
-                papers = []  # 这里可以改进，保存抓取结果供通知使用
-                message = f"成功抓取 {result['paper_count']} 篇论文\n"
-                message += f"执行时间: {result['timestamp']}"
+                summary = result.get('paper_summary')
+                if summary:
+                    message = summary
+                else:
+                    message = f"成功抓取 {result['paper_count']} 篇论文"
+
+                if result.get('markdown_report'):
+                    message += f"\n报告: {result['markdown_report']}"
+
+                message += f"\n执行时间: {result['timestamp']}"
                 send_notification(notification_config, message, "ArXiv 论文抓取成功")
 
     except Exception as e:

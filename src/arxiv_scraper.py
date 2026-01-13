@@ -4,17 +4,23 @@ ArXiv 论文抓取模块
 """
 
 import arxiv
+import hashlib
 import json
 import os
 import logging
 from datetime import datetime
 from typing import List, Dict, Any, Optional
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
-import requests
 
-from .ai_service import create_ai_service, BaseAIService
+from .ai_service import create_ai_service
 from .markdown_generator import MarkdownGenerator
-from .utils import send_email_with_retry, send_report_via_webhook
+from .utils import (
+    send_email_with_retry,
+    send_report_via_webhook,
+    format_paper_summary,
+    create_retry_session
+)
 
 
 class ArxivScraper:
@@ -38,6 +44,24 @@ class ArxivScraper:
         os.makedirs(self.data_dir, exist_ok=True)
         if self.storage_config.get('download_pdf', False):
             os.makedirs(self.pdf_dir, exist_ok=True)
+
+        self.http_session = create_retry_session()
+
+        self.cache_enabled = bool(self.storage_config.get('cache_enabled', True))
+        self.cache_file = self.storage_config.get(
+            'cache_file',
+            os.path.join(self.data_dir, 'cache.json')
+        )
+        try:
+            self.cache_max_items = int(self.storage_config.get('cache_max_items', 5000))
+        except (TypeError, ValueError):
+            self.cache_max_items = 5000
+        self.cache: Dict[str, Dict[str, Any]] = {}
+        self.cache_dirty = False
+        self.ai_cache_key = self._build_ai_cache_key()
+        self.filter_cache_key = self._build_filter_cache_key()
+        if self.cache_enabled:
+            self._load_cache()
 
     def build_query(self) -> str:
         """
@@ -100,6 +124,9 @@ class ArxivScraper:
                 papers.append(paper_data)
 
             self.logger.info(f"成功获取 {len(papers)} 篇论文")
+
+            # 去重（按 arxiv_id）
+            papers = self._deduplicate_papers(papers)
 
             # 计算相关度评分
             papers = self._calculate_relevance_scores(papers)
@@ -191,6 +218,223 @@ class ArxivScraper:
             )
 
         return papers
+
+    def _deduplicate_papers(self, papers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        按 arxiv_id 去重
+
+        Args:
+            papers: 论文列表
+
+        Returns:
+            去重后的论文列表
+        """
+        seen = set()
+        unique_papers = []
+
+        for paper in papers:
+            arxiv_id = paper.get('arxiv_id')
+            if not arxiv_id:
+                unique_papers.append(paper)
+                continue
+
+            if arxiv_id in seen:
+                continue
+
+            seen.add(arxiv_id)
+            unique_papers.append(paper)
+
+        if len(unique_papers) != len(papers):
+            self.logger.info(f"去重完成：{len(papers)} → {len(unique_papers)} 篇论文")
+
+        return unique_papers
+
+    def _get_max_workers(self, ai_config: Dict[str, Any], total_tasks: int) -> int:
+        """根据配置和任务量获取并发数"""
+        try:
+            requested = int(ai_config.get('max_workers', 4))
+        except (TypeError, ValueError):
+            requested = 4
+
+        if requested < 1:
+            requested = 1
+
+        if total_tasks <= 0:
+            return 1
+
+        return min(requested, total_tasks)
+
+    def _get_cache_key(self, paper: Dict[str, Any]) -> Optional[str]:
+        """获取缓存键"""
+        arxiv_id = paper.get('arxiv_id')
+        updated = paper.get('updated')
+        if not arxiv_id or not updated:
+            return None
+        return f"{arxiv_id}:{updated}"
+
+    def _get_cache_entry(self, paper: Dict[str, Any]) -> Optional[Dict[str, Any]]:
+        """获取缓存条目"""
+        cache_key = self._get_cache_key(paper)
+        if not cache_key:
+            return None
+        return self.cache.get(cache_key)
+
+    def _get_prompts_signature(self) -> str:
+        """获取 prompts 配置签名，用于缓存失效判断"""
+        prompts_path = self.config.get('ai', {}).get('prompts_file', './prompts/prompts.yaml')
+        try:
+            import yaml
+            with open(prompts_path, 'r', encoding='utf-8') as f:
+                data = yaml.safe_load(f)
+
+            # 只计算关键 prompt 的哈希，忽略格式调整和注释
+            relevant_prompts = {
+                'summarize': data.get('summarize') if isinstance(data, dict) else None,
+                'translate': data.get('translate') if isinstance(data, dict) else None,
+                'insights': data.get('insights') if isinstance(data, dict) else None,
+                'filter': data.get('filter') if isinstance(data, dict) else None
+            }
+            serialized = json.dumps(relevant_prompts, sort_keys=True, ensure_ascii=True)
+            return hashlib.sha256(serialized.encode('utf-8')).hexdigest()
+        except FileNotFoundError:
+            return "default"
+        except Exception as e:
+            self.logger.warning(f"读取 prompts 文件失败: {str(e)}")
+            return "unknown"
+
+    def _hash_payload(self, payload: Dict[str, Any]) -> str:
+        """生成稳定的配置哈希"""
+        serialized = json.dumps(payload, sort_keys=True, ensure_ascii=True)
+        return hashlib.sha256(serialized.encode('utf-8')).hexdigest()
+
+    def _build_ai_cache_key(self) -> str:
+        """构建 AI 处理缓存键"""
+        ai_config = self.config.get('ai', {})
+        provider = ai_config.get('provider', 'openai').lower()
+        provider_key = 'anthropic' if provider in ['anthropic', 'claude'] else provider
+        provider_config = ai_config.get(provider_key, {})
+
+        payload = {
+            'provider': provider_key,
+            'model': provider_config.get('model'),
+            'base_url': provider_config.get('base_url'),
+            'max_tokens': provider_config.get('max_tokens'),
+            'temperature': provider_config.get('temperature'),
+            'prompts_signature': self._get_prompts_signature()
+        }
+        return self._hash_payload(payload)
+
+    def _build_filter_cache_key(self) -> str:
+        """构建筛选缓存键"""
+        ai_config = self.config.get('ai', {})
+        provider = ai_config.get('provider', 'openai').lower()
+        provider_key = 'anthropic' if provider in ['anthropic', 'claude'] else provider
+        provider_config = ai_config.get(provider_key, {})
+
+        payload = {
+            'provider': provider_key,
+            'model': provider_config.get('model'),
+            'base_url': provider_config.get('base_url'),
+            'filter_keywords': ai_config.get('filter_keywords', '').strip(),
+            'prompts_signature': self._get_prompts_signature()
+        }
+        return self._hash_payload(payload)
+
+    def _load_cache(self) -> None:
+        """加载缓存文件"""
+        if not self.cache_file or not os.path.exists(self.cache_file):
+            return
+
+        try:
+            with open(self.cache_file, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            if isinstance(data, dict) and 'items' in data:
+                self.cache = data.get('items', {})
+            elif isinstance(data, dict):
+                self.cache = data
+            else:
+                self.cache = {}
+
+            self.logger.info(f"已加载缓存: {len(self.cache)} 条")
+
+        except Exception as e:
+            self.logger.warning(f"加载缓存失败: {str(e)}")
+            self.cache = {}
+
+    def _prune_cache(self) -> None:
+        """裁剪缓存大小"""
+        if not self.cache_max_items or len(self.cache) <= self.cache_max_items:
+            return
+
+        items = sorted(
+            self.cache.items(),
+            key=lambda item: item[1].get('cached_at', ''),
+            reverse=True
+        )
+        self.cache = dict(items[:self.cache_max_items])
+        self.logger.info(f"缓存已裁剪到 {self.cache_max_items} 条")
+
+    def _save_cache(self) -> None:
+        """保存缓存到磁盘"""
+        if not self.cache_enabled or not self.cache_dirty:
+            return
+
+        try:
+            self._prune_cache()
+            cache_dir = os.path.dirname(self.cache_file)
+            if cache_dir:
+                os.makedirs(cache_dir, exist_ok=True)
+
+            payload = {
+                'version': 1,
+                'items': self.cache
+            }
+
+            temp_path = f"{self.cache_file}.tmp"
+            with open(temp_path, 'w', encoding='utf-8') as f:
+                json.dump(payload, f, ensure_ascii=False, indent=2)
+            os.replace(temp_path, self.cache_file)
+            self.cache_dirty = False
+            self.logger.info(f"缓存已保存: {self.cache_file}")
+
+        except Exception as e:
+            self.logger.warning(f"保存缓存失败: {str(e)}")
+
+    def _update_cache_entry(
+        self,
+        paper: Dict[str, Any],
+        ai_summary: Optional[Dict[str, Any]] = None,
+        translation: Optional[str] = None,
+        insights: Optional[Dict[str, Any]] = None,
+        filter_result: Optional[Dict[str, Any]] = None
+    ) -> None:
+        """更新缓存条目"""
+        if not self.cache_enabled:
+            return
+
+        cache_key = self._get_cache_key(paper)
+        if not cache_key:
+            return
+
+        entry = self.cache.get(cache_key, {})
+        entry['cached_at'] = datetime.now().isoformat()
+
+        if ai_summary is not None:
+            entry['ai_cache_key'] = self.ai_cache_key
+            entry['ai_summary'] = ai_summary
+        if translation is not None:
+            entry['ai_cache_key'] = self.ai_cache_key
+            entry['translation'] = translation
+        if insights is not None:
+            entry['ai_cache_key'] = self.ai_cache_key
+            entry['insights'] = insights
+        if filter_result is not None:
+            entry['filter_cache_key'] = self.filter_cache_key
+            entry['filter_result'] = filter_result
+
+        self.cache[cache_key] = entry
+        self.cache_dirty = True
 
     def _apply_multi_level_sort(self, papers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -385,12 +629,14 @@ class ArxivScraper:
                     self.logger.debug(f"PDF 已存在，跳过: {filename}")
                     continue
 
-                # 下载 PDF
-                response = requests.get(pdf_url, timeout=30)
+                # 下载 PDF（流式写入）
+                response = self.http_session.get(pdf_url, timeout=30, stream=True)
                 response.raise_for_status()
 
                 with open(filepath, 'wb') as f:
-                    f.write(response.content)
+                    for chunk in response.iter_content(chunk_size=8192):
+                        if chunk:
+                            f.write(chunk)
 
                 self.logger.info(f"[{i}/{len(papers)}] 已下载 PDF: {filename}")
 
@@ -428,33 +674,78 @@ class ArxivScraper:
 
         self.logger.info(f"开始 AI 智能筛选论文（关键词：{filter_keywords}，阈值：{filter_threshold}）...")
 
+        cached_hits = 0
+        papers_to_filter = []
+        for paper in papers:
+            cache_entry = self._get_cache_entry(paper)
+            cached_filter = None
+            if cache_entry and cache_entry.get('filter_cache_key') == self.filter_cache_key:
+                cached_filter = cache_entry.get('filter_result')
+
+            if cached_filter:
+                paper['filter_result'] = cached_filter
+                cached_hits += 1
+            else:
+                papers_to_filter.append(paper)
+
+        if cached_hits:
+            self.logger.info(f"筛选缓存命中: {cached_hits} 篇论文")
+
+        if papers_to_filter:
+            max_workers = self._get_max_workers(ai_config, len(papers_to_filter))
+            self.logger.info(f"并发筛选: {max_workers} 线程")
+
+            if max_workers == 1:
+                for i, paper in enumerate(papers_to_filter, 1):
+                    try:
+                        self.logger.info(f"[{i}/{len(papers_to_filter)}] 筛选: {paper['title'][:50]}...")
+                        filter_result = ai_service.filter_paper(paper, filter_keywords)
+                    except Exception as e:
+                        self.logger.error(f"筛选失败 ({paper.get('arxiv_id', 'unknown')}): {str(e)}")
+                        filter_result = {
+                            'relevant': True,
+                            'confidence': 0.5,
+                            'reason': f'筛选失败: {str(e)}',
+                            'status': 'error'
+                        }
+
+                    paper['filter_result'] = filter_result
+                    if filter_result.get('status') == 'success':
+                        self._update_cache_entry(paper, filter_result=filter_result)
+            else:
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    future_to_paper = {
+                        executor.submit(ai_service.filter_paper, paper, filter_keywords): paper
+                        for paper in papers_to_filter
+                    }
+
+                    for future in as_completed(future_to_paper):
+                        paper = future_to_paper[future]
+                        try:
+                            filter_result = future.result()
+                        except Exception as e:
+                            self.logger.error(
+                                f"筛选失败 ({paper.get('arxiv_id', 'unknown')}): {str(e)}"
+                            )
+                            filter_result = {
+                                'relevant': True,
+                                'confidence': 0.5,
+                                'reason': f'筛选失败: {str(e)}',
+                                'status': 'error'
+                            }
+
+                        paper['filter_result'] = filter_result
+                        if filter_result.get('status') == 'success':
+                            self._update_cache_entry(paper, filter_result=filter_result)
+
         filtered_papers = []
-        for i, paper in enumerate(papers, 1):
-            try:
-                self.logger.info(f"[{i}/{len(papers)}] 筛选: {paper['title'][:50]}...")
+        for paper in papers:
+            filter_result = paper.get('filter_result')
+            if not filter_result:
+                filtered_papers.append(paper)
+                continue
 
-                # 调用 AI 筛选
-                filter_result = ai_service.filter_paper(paper, filter_keywords)
-
-                # 保存筛选结果
-                paper['filter_result'] = filter_result
-
-                # 根据相关性和置信度决定是否保留
-                if filter_result.get('relevant', False) and filter_result.get('confidence', 0.0) >= filter_threshold:
-                    filtered_papers.append(paper)
-                    self.logger.info(
-                        f"  ✓ 保留 (置信度: {filter_result.get('confidence', 0.0):.2f}, "
-                        f"理由: {filter_result.get('reason', 'N/A')[:50]})"
-                    )
-                else:
-                    self.logger.info(
-                        f"  ✗ 过滤 (置信度: {filter_result.get('confidence', 0.0):.2f}, "
-                        f"理由: {filter_result.get('reason', 'N/A')[:50]})"
-                    )
-
-            except Exception as e:
-                self.logger.error(f"筛选失败 ({paper['arxiv_id']}): {str(e)}")
-                # 出错时保留论文（保守策略）
+            if filter_result.get('relevant', False) and filter_result.get('confidence', 0.0) >= filter_threshold:
                 filtered_papers.append(paper)
 
         self.logger.info(f"AI 筛选完成：{len(papers)} → {len(filtered_papers)} 篇论文")
@@ -488,38 +779,130 @@ class ArxivScraper:
 
         self.logger.info("开始 AI 处理论文...")
 
-        for i, paper in enumerate(papers, 1):
-            try:
-                self.logger.info(f"[{i}/{len(papers)}] 处理: {paper['title'][:50]}...")
+        cached_summary = 0
+        cached_translation = 0
+        cached_insights = 0
+        tasks = []
 
-                # AI 总结
-                if enable_summary:
-                    summary_result = ai_service.summarize_paper(paper)
-                    paper['ai_summary'] = summary_result
-                    self.logger.debug(f"总结状态: {summary_result.get('status')}")
+        for paper in papers:
+            cache_entry = self._get_cache_entry(paper)
+            cache_valid = cache_entry and cache_entry.get('ai_cache_key') == self.ai_cache_key
 
-                # 翻译摘要
-                if enable_translation and paper.get('summary'):
-                    translation = ai_service.translate_text(paper['summary'])
-                    paper['translation'] = translation
-                    self.logger.debug("翻译完成")
+            needs_summary = enable_summary
+            if enable_summary and cache_valid:
+                cached = cache_entry.get('ai_summary')
+                if cached and cached.get('status') == 'success':
+                    paper['ai_summary'] = cached
+                    cached_summary += 1
+                    needs_summary = False
 
-                # 提取关键洞察
-                if enable_insights:
-                    insights_result = ai_service.extract_insights(paper)
-                    paper['insights'] = insights_result
-                    self.logger.debug(f"洞察提取状态: {insights_result.get('status')}")
+            needs_translation = enable_translation and paper.get('summary')
+            if enable_translation and cache_valid:
+                cached = cache_entry.get('translation')
+                if cached and not str(cached).startswith('翻译失败'):
+                    paper['translation'] = cached
+                    cached_translation += 1
+                    needs_translation = False
 
-            except Exception as e:
-                self.logger.error(f"AI 处理失败 ({paper['arxiv_id']}): {str(e)}")
-                # 添加错误信息，但继续处理其他论文
-                if enable_summary:
-                    paper['ai_summary'] = {
-                        'summary': f"处理失败: {str(e)}",
-                        'status': 'error'
-                    }
-                if enable_translation:
-                    paper['translation'] = f"翻译失败: {str(e)}"
+            needs_insights = enable_insights
+            if enable_insights and cache_valid:
+                cached = cache_entry.get('insights')
+                if cached and cached.get('status') == 'success':
+                    paper['insights'] = cached
+                    cached_insights += 1
+                    needs_insights = False
+
+            if needs_summary or needs_translation or needs_insights:
+                tasks.append((paper, needs_summary, needs_translation, needs_insights))
+
+        if cached_summary or cached_translation or cached_insights:
+            self.logger.info(
+                f"AI 缓存命中: 总结 {cached_summary}，翻译 {cached_translation}，洞察 {cached_insights}"
+            )
+
+        def process_single(task):
+            paper, do_summary, do_translation, do_insights = task
+            result = {}
+            if do_summary:
+                result['ai_summary'] = ai_service.summarize_paper(paper)
+            if do_translation:
+                result['translation'] = ai_service.translate_text(paper.get('summary', ''))
+            if do_insights:
+                result['insights'] = ai_service.extract_insights(paper)
+            return paper, result
+
+        if tasks:
+            max_workers = self._get_max_workers(ai_config, len(tasks))
+            if max_workers == 1:
+                for i, task in enumerate(tasks, 1):
+                    paper = task[0]
+                    try:
+                        self.logger.info(f"[{i}/{len(tasks)}] 处理: {paper['title'][:50]}...")
+                        _, result = process_single(task)
+                    except Exception as e:
+                        self.logger.error(f"AI 处理失败 ({paper.get('arxiv_id', 'unknown')}): {str(e)}")
+                        result = {}
+                        if task[1]:
+                            result['ai_summary'] = {
+                                'summary': f"处理失败: {str(e)}",
+                                'status': 'error'
+                            }
+                        if task[2]:
+                            result['translation'] = f"翻译失败: {str(e)}"
+                        if task[3]:
+                            result['insights'] = {
+                                'insights': [],
+                                'status': 'error',
+                                'error': str(e)
+                            }
+
+                    for key, value in result.items():
+                        paper[key] = value
+
+                    if result.get('ai_summary', {}).get('status') == 'success':
+                        self._update_cache_entry(paper, ai_summary=result['ai_summary'])
+                    if 'translation' in result and not str(result['translation']).startswith('翻译失败'):
+                        self._update_cache_entry(paper, translation=result['translation'])
+                    if result.get('insights', {}).get('status') == 'success':
+                        self._update_cache_entry(paper, insights=result['insights'])
+            else:
+                self.logger.info(f"并发处理: {max_workers} 线程")
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    future_to_task = {executor.submit(process_single, task): task for task in tasks}
+
+                    for future in as_completed(future_to_task):
+                        task = future_to_task[future]
+                        paper = task[0]
+                        try:
+                            _, result = future.result()
+                        except Exception as e:
+                            self.logger.error(
+                                f"AI 处理失败 ({paper.get('arxiv_id', 'unknown')}): {str(e)}"
+                            )
+                            result = {}
+                            if task[1]:
+                                result['ai_summary'] = {
+                                    'summary': f"处理失败: {str(e)}",
+                                    'status': 'error'
+                                }
+                            if task[2]:
+                                result['translation'] = f"翻译失败: {str(e)}"
+                            if task[3]:
+                                result['insights'] = {
+                                    'insights': [],
+                                    'status': 'error',
+                                    'error': str(e)
+                                }
+
+                        for key, value in result.items():
+                            paper[key] = value
+
+                        if result.get('ai_summary', {}).get('status') == 'success':
+                            self._update_cache_entry(paper, ai_summary=result['ai_summary'])
+                        if 'translation' in result and not str(result['translation']).startswith('翻译失败'):
+                            self._update_cache_entry(paper, translation=result['translation'])
+                        if result.get('insights', {}).get('status') == 'success':
+                            self._update_cache_entry(paper, insights=result['insights'])
 
         self.logger.info("AI 处理完成")
         return papers
@@ -649,6 +1032,7 @@ class ArxivScraper:
             执行结果
         """
         saved_paper_files = []
+        papers: List[Dict[str, Any]] = []
 
         try:
             self.logger.info("=" * 50)
@@ -694,6 +1078,7 @@ class ArxivScraper:
                 'success': True,
                 'paper_count': len(papers),
                 'markdown_report': markdown_path,
+                'paper_summary': format_paper_summary(papers),
                 'timestamp': datetime.now().isoformat()
             }
 
@@ -709,3 +1094,5 @@ class ArxivScraper:
                 'error': str(e),
                 'timestamp': datetime.now().isoformat()
             }
+        finally:
+            self._save_cache()

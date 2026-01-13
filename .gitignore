@@ -25,6 +25,7 @@ logs/
 
 # Config
 config.yaml
+config.yaml.*
 
 # OS
 .DS_Store
@@ -34,3 +35,4 @@ Thumbs.db
 *.tmp
 *.bak
 .cache/
+.gitignore
