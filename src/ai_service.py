@@ -9,6 +9,7 @@ import requests
 from typing import Dict, Any, Optional, List
 from abc import ABC, abstractmethod
 from .prompt_loader import get_prompt_loader
+from .utils import create_retry_session
 
 
 class AIServiceError(Exception):
@@ -100,6 +101,11 @@ class OpenAIService(BaseAIService):
         self.base_url = config.get('base_url', 'https://api.openai.com/v1')
         self.max_tokens = config.get('max_tokens', 1000)
         self.temperature = config.get('temperature', 0.7)
+        self.request_timeout = config.get('request_timeout', 60)
+        self.session = create_retry_session(
+            total_retries=int(config.get('max_retries', 3)),
+            backoff_factor=float(config.get('backoff_factor', 0.5))
+        )
         self.prompt_loader = get_prompt_loader()
 
         if not self.api_key:
@@ -128,11 +134,11 @@ class OpenAIService(BaseAIService):
                 'temperature': self.temperature
             }
 
-            response = requests.post(
+            response = self.session.post(
                 f'{self.base_url}/chat/completions',
                 headers=headers,
                 json=data,
-                timeout=60
+                timeout=self.request_timeout
             )
 
             response.raise_for_status()
@@ -325,6 +331,11 @@ class AnthropicService(BaseAIService):
         self.base_url = config.get('base_url', 'https://api.anthropic.com/v1')
         self.max_tokens = config.get('max_tokens', 1000)
         self.temperature = config.get('temperature', 0.7)
+        self.request_timeout = config.get('request_timeout', 60)
+        self.session = create_retry_session(
+            total_retries=int(config.get('max_retries', 3)),
+            backoff_factor=float(config.get('backoff_factor', 0.5))
+        )
         self.prompt_loader = get_prompt_loader()
 
         if not self.api_key:
@@ -360,11 +371,11 @@ class AnthropicService(BaseAIService):
             if system:
                 data['system'] = system
 
-            response = requests.post(
+            response = self.session.post(
                 f'{self.base_url}/messages',
                 headers=headers,
                 json=data,
-                timeout=60
+                timeout=self.request_timeout
             )
 
             response.raise_for_status()
@@ -524,6 +535,11 @@ class OllamaService(BaseAIService):
         super().__init__(config)
         self.model = config.get('model', 'llama2')
         self.base_url = config.get('base_url', 'http://localhost:11434')
+        self.request_timeout = config.get('request_timeout', 120)
+        self.session = create_retry_session(
+            total_retries=int(config.get('max_retries', 3)),
+            backoff_factor=float(config.get('backoff_factor', 0.5))
+        )
         self.prompt_loader = get_prompt_loader()
 
     def _call_api(self, prompt: str, system: str = None) -> str:
@@ -547,10 +563,10 @@ class OllamaService(BaseAIService):
             if system:
                 data['system'] = system
 
-            response = requests.post(
+            response = self.session.post(
                 f'{self.base_url}/api/generate',
                 json=data,
-                timeout=120
+                timeout=self.request_timeout
             )
 
             response.raise_for_status()
@@ -703,6 +719,24 @@ class OllamaService(BaseAIService):
             }
 
 
+def _merge_provider_config(ai_config: Dict[str, Any], provider_key: str) -> Dict[str, Any]:
+    """
+    合并全局 AI 配置与提供商配置
+
+    Args:
+        ai_config: 全局 AI 配置
+        provider_key: 提供商键（openai/anthropic/ollama）
+
+    Returns:
+        合并后的配置字典
+    """
+    provider_config = dict(ai_config.get(provider_key, {}))
+    for key in ['max_retries', 'backoff_factor', 'request_timeout']:
+        if key in ai_config and key not in provider_config:
+            provider_config[key] = ai_config[key]
+    return provider_config
+
+
 def create_ai_service(config: Dict[str, Any]) -> Optional[BaseAIService]:
     """
     创建 AI 服务实例
@@ -717,16 +751,17 @@ def create_ai_service(config: Dict[str, Any]) -> Optional[BaseAIService]:
         return None
 
     provider = config.get('provider', 'openai').lower()
+    provider_key = 'anthropic' if provider in ['anthropic', 'claude'] else provider
 
     try:
-        if provider == 'openai':
-            return OpenAIService(config.get('openai', {}))
-        elif provider == 'anthropic' or provider == 'claude':
-            return AnthropicService(config.get('anthropic', {}))
-        elif provider == 'ollama':
-            return OllamaService(config.get('ollama', {}))
+        if provider_key == 'openai':
+            return OpenAIService(_merge_provider_config(config, 'openai'))
+        elif provider_key == 'anthropic':
+            return AnthropicService(_merge_provider_config(config, 'anthropic'))
+        elif provider_key == 'ollama':
+            return OllamaService(_merge_provider_config(config, 'ollama'))
         else:
-            logging.warning(f"不支持的 AI 服务提供商: {provider}")
+            logging.warning(f"不支持的 AI 服务提供商: {provider_key}")
             return None
 
     except AIServiceError as e:

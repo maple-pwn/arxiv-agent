@@ -12,11 +12,14 @@
 
 import os
 import sys
-import yaml
 import shutil
+import copy
 from datetime import datetime
 from typing import Dict, Any, List, Tuple
-from collections import OrderedDict
+from collections.abc import Mapping
+
+from ruamel.yaml import YAML
+from ruamel.yaml.comments import CommentedMap
 
 
 class ConfigMigration:
@@ -35,6 +38,10 @@ class ConfigMigration:
         self.config_path = config_path
         self.backup_path = None
         self.changes = []
+        self.yaml = YAML()
+        self.yaml.preserve_quotes = True
+        self.yaml.width = 4096
+        self.yaml.indent(mapping=2, sequence=4, offset=2)
 
     def backup_config(self) -> str:
         """
@@ -55,7 +62,7 @@ class ConfigMigration:
 
         return backup_path
 
-    def load_yaml(self, filepath: str) -> Dict[str, Any]:
+    def load_yaml(self, filepath: str) -> CommentedMap:
         """
         加载 YAML 文件
 
@@ -66,18 +73,24 @@ class ConfigMigration:
             配置字典
         """
         if not os.path.exists(filepath):
-            return {}
+            return CommentedMap()
 
         with open(filepath, 'r', encoding='utf-8') as f:
             try:
-                return yaml.safe_load(f) or {}
-            except yaml.YAMLError as e:
+                data = self.yaml.load(f)
+                if data is None:
+                    return CommentedMap()
+                if not isinstance(data, Mapping):
+                    print(f"❌ 配置格式异常 ({filepath}): 顶层应为映射")
+                    return CommentedMap()
+                return data
+            except Exception as e:
                 print(f"❌ YAML 解析错误 ({filepath}): {e}")
-                return {}
+                return CommentedMap()
 
-    def merge_configs(self, template: Dict[str, Any],
-                     existing: Dict[str, Any],
-                     path: str = "") -> Dict[str, Any]:
+    def merge_configs(self, template: Mapping[str, Any],
+                     existing: Mapping[str, Any],
+                     path: str = "") -> CommentedMap:
         """
         递归合并配置
 
@@ -91,7 +104,7 @@ class ConfigMigration:
         Returns:
             合并后的配置
         """
-        merged = {}
+        merged = template if isinstance(template, CommentedMap) else CommentedMap(template)
 
         # 1. 遍历模板中的所有键
         for key, template_value in template.items():
@@ -101,7 +114,7 @@ class ConfigMigration:
                 existing_value = existing[key]
 
                 # 如果两者都是字典，递归合并
-                if isinstance(template_value, dict) and isinstance(existing_value, dict):
+                if isinstance(template_value, Mapping) and isinstance(existing_value, Mapping):
                     merged[key] = self.merge_configs(template_value, existing_value, current_path)
 
                 # 如果类型不同，或者是基本类型，保留用户配置
@@ -123,9 +136,18 @@ class ConfigMigration:
             if key not in template:
                 current_path = f"{path}.{key}" if path else key
                 merged[key] = existing_value
+                self._copy_key_comment(existing, merged, key)
                 self.changes.append(f"  ★ 保留自定义配置: {current_path}")
 
         return merged
+
+    def _copy_key_comment(self, src: Mapping[str, Any], dst: CommentedMap, key: str) -> None:
+        """复制键级注释（如果存在）"""
+        try:
+            if hasattr(src, 'ca') and src.ca.items and key in src.ca.items:
+                dst.ca.items[key] = copy.copy(src.ca.items[key])
+        except Exception:
+            pass
 
     def _is_user_modified(self, template_value: Any, existing_value: Any) -> bool:
         """
@@ -161,11 +183,7 @@ class ConfigMigration:
             output_path: 输出文件路径
         """
         with open(output_path, 'w', encoding='utf-8') as f:
-            yaml.dump(config, f,
-                     default_flow_style=False,
-                     allow_unicode=True,
-                     sort_keys=False,
-                     indent=2)
+            self.yaml.dump(config, f)
 
     def migrate(self, dry_run: bool = False) -> Tuple[bool, str]:
         """

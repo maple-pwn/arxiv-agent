@@ -13,6 +13,8 @@ from email import encoders
 from logging.handlers import RotatingFileHandler
 from typing import Dict, Any, List, Optional
 import requests
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 import colorlog
 import time
 import json
@@ -73,6 +75,49 @@ def setup_logging(config: Dict[str, Any]) -> None:
         )
         console_handler.setFormatter(console_formatter)
         logger.addHandler(console_handler)
+
+
+def create_retry_session(
+    total_retries: int = 3,
+    backoff_factor: float = 0.5,
+    status_forcelist: Optional[List[int]] = None,
+    allowed_methods: Optional[List[str]] = None
+) -> requests.Session:
+    """
+    创建带重试机制的 requests Session
+
+    Args:
+        total_retries: 总重试次数
+        backoff_factor: 退避系数（用于指数退避）
+        status_forcelist: 需要重试的状态码列表
+        allowed_methods: 允许重试的 HTTP 方法列表
+
+    Returns:
+        配置好重试策略的 Session
+    """
+    session = requests.Session()
+    status_forcelist = status_forcelist or [429, 500, 502, 503, 504]
+    allowed_methods = allowed_methods or ["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"]
+
+    retry_kwargs = dict(
+        total=total_retries,
+        connect=total_retries,
+        read=total_retries,
+        status=total_retries,
+        backoff_factor=backoff_factor,
+        status_forcelist=status_forcelist,
+        raise_on_status=False
+    )
+
+    try:
+        retry = Retry(**retry_kwargs, allowed_methods=frozenset(allowed_methods))
+    except TypeError:
+        retry = Retry(**retry_kwargs, method_whitelist=frozenset(allowed_methods))
+
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
 
 
 def send_notification(config: Dict[str, Any], message: str, subject: str = None) -> bool:
@@ -276,6 +321,13 @@ def ensure_directories(config: Dict[str, Any]) -> None:
     # 数据目录
     data_dir = storage_config.get('data_dir', './data/papers')
     os.makedirs(data_dir, exist_ok=True)
+
+    # 缓存目录
+    cache_file = storage_config.get('cache_file')
+    if storage_config.get('cache_enabled', True) and cache_file:
+        cache_dir = os.path.dirname(cache_file)
+        if cache_dir:
+            os.makedirs(cache_dir, exist_ok=True)
 
     # PDF 目录
     if storage_config.get('download_pdf', False):

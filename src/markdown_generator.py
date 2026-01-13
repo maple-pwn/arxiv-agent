@@ -51,7 +51,8 @@ class MarkdownGenerator:
             title = paper.get('title', 'N/A')
             # 清理标题中的特殊字符
             title = title.replace('[', '').replace(']', '').replace('#', '')
-            lines.append(f"{i}. [{title}](#{i}-{self._slugify(title)})")
+            anchor = self._make_anchor_id(paper, i)
+            lines.append(f"{i}. [{title}](#{anchor})")
         lines.append("")
         lines.append("---")
         lines.append("")
@@ -103,6 +104,8 @@ class MarkdownGenerator:
 
         # 标题
         title = paper.get('title', 'N/A')
+        anchor = self._make_anchor_id(paper, index)
+        lines.append(f'<a id="{anchor}"></a>')
         lines.append(f"## {index}. {title}")
         lines.append("")
 
@@ -231,6 +234,24 @@ class MarkdownGenerator:
         text = ''.join(c if c.isalnum() or c.isspace() else '' for c in text)
         text = '-'.join(text.split())
         return text[:50]  # 限制长度
+
+    def _make_anchor_id(self, paper: Dict[str, Any], index: int) -> str:
+        """
+        生成稳定的锚点 ID
+
+        Args:
+            paper: 论文数据
+            index: 论文序号
+
+        Returns:
+            锚点 ID
+        """
+        arxiv_id = paper.get('arxiv_id')
+        if arxiv_id:
+            return f"paper-{self._slugify(str(arxiv_id))}"
+
+        title = paper.get('title', 'N/A')
+        return f"paper-{index}-{self._slugify(title)}"
 
     def save_to_file(self, content: str, file_path: str) -> bool:
         """

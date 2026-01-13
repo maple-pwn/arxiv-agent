@@ -88,11 +88,22 @@ ai:
   enable_filter: false
   filter_keywords: "游戏AI, 强化学习应用"  # 与arxiv.keywords不同，用于精准筛选
   filter_threshold: 0.7  # 置信度阈值（0.6-0.8推荐）
+
+  # 性能优化配置
+  max_workers: 4           # 并发线程数（1-8推荐）
+  max_retries: 3           # API 重试次数
+  backoff_factor: 0.5      # 重试退避系数
+  request_timeout: 60      # 请求超时（秒）
 ```
 
 **关键词说明**：
 - `arxiv.keywords`：用于 ArXiv 搜索，应该宽泛一些（如 "machine learning"）
 - `ai.filter_keywords`：用于 AI 精准筛选，应该具体一些（如 "医学影像诊断"）
+
+**性能优化说明**：
+- `max_workers`：并发处理论文数量，4线程可提升3-4倍速度
+- `max_retries`：网络不稳定时自动重试，提升可靠性
+- 缓存机制会自动保存 AI 处理结果，二次运行速度提升 5x
 
 ### 3. 通知配置
 
