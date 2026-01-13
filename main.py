@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 from src.config import ConfigManager
 from src.arxiv_scraper import ArxivScraper
 from src.utils import setup_logging, send_notification, format_paper_summary, ensure_directories
+from config_migration import ConfigMigration
 
 
 def run_scraper(config_manager: ConfigManager) -> None:
@@ -53,6 +54,25 @@ def run_scraper(config_manager: ConfigManager) -> None:
         if notification_config.get('enabled', False):
             message = f"抓取任务执行失败\n错误信息: {str(e)}"
             send_notification(notification_config, message, "ArXiv 论文抓取失败")
+
+
+def check_config_migration() -> None:
+    """检查配置文件是否需要迁移"""
+    if not os.path.exists('config.yaml') or not os.path.exists('config.yaml.template'):
+        return
+
+    # 检查模板文件是否比配置文件新
+    template_mtime = os.path.getmtime('config.yaml.template')
+    config_mtime = os.path.getmtime('config.yaml')
+
+    if template_mtime > config_mtime:
+        print("\n" + "=" * 60)
+        print("⚠️  检测到配置模板已更新")
+        print("=" * 60)
+        print("建议运行配置迁移工具以获取最新配置项:")
+        print("  python config_migration.py --dry-run  # 预览变更")
+        print("  python config_migration.py            # 执行迁移")
+        print("=" * 60 + "\n")
 
 
 def run_once(config_path: str) -> None:
@@ -131,8 +151,31 @@ def create_sample_config() -> None:
     """创建示例配置文件"""
     if os.path.exists('config.yaml'):
         print("配置文件 config.yaml 已存在")
-        response = input("是否覆盖? (y/N): ")
-        if response.lower() != 'y':
+        print("\n请选择操作:")
+        print("  1. 智能合并（推荐）- 保留现有配置，添加模板中的新配置项")
+        print("  2. 覆盖 - 使用模板完全覆盖现有配置")
+        print("  3. 取消")
+
+        response = input("\n请输入选项 (1/2/3): ").strip()
+
+        if response == '1':
+            # 使用配置迁移工具进行智能合并
+            print("\n使用配置迁移工具进行智能合并...")
+            migration = ConfigMigration('config.yaml.template', 'config.yaml')
+            success, message = migration.migrate(dry_run=False)
+
+            if not success:
+                print(f"合并失败: {message}")
+                sys.exit(1)
+            return
+
+        elif response == '2':
+            # 覆盖模式
+            confirm = input("确认要覆盖现有配置? 此操作不可恢复! (yes/N): ")
+            if confirm.lower() != 'yes':
+                print("取消覆盖")
+                return
+        else:
             print("取消创建")
             return
 
@@ -141,7 +184,7 @@ def create_sample_config() -> None:
         if os.path.exists('config.yaml.template'):
             import shutil
             shutil.copy('config.yaml.template', 'config.yaml')
-            print("已从模板创建配置文件: config.yaml")
+            print("✅ 已从模板创建配置文件: config.yaml")
         else:
             # 创建简单的配置文件
             import yaml
@@ -172,12 +215,13 @@ def create_sample_config() -> None:
             with open('config.yaml', 'w', encoding='utf-8') as f:
                 yaml.dump(default_config, f, default_flow_style=False, allow_unicode=True)
 
-            print("已创建默认配置文件: config.yaml")
+            print("✅ 已创建默认配置文件: config.yaml")
 
-        print("\n请根据需要修改配置文件后再运行")
+        print("\n📝 请根据需要修改配置文件后再运行")
+        print("提示: 运行 'python config_migration.py --validate' 验证配置完整性")
 
     except Exception as e:
-        print(f"创建配置文件失败: {str(e)}")
+        print(f"❌ 创建配置文件失败: {str(e)}")
         sys.exit(1)
 
 
@@ -231,6 +275,10 @@ def main():
         print(f"错误: 配置文件不存在: {args.config}")
         print(f"请运行 '{sys.argv[0]} --init' 创建示例配置文件")
         sys.exit(1)
+
+    # 检查配置是否需要迁移
+    if args.config == 'config.yaml':
+        check_config_migration()
 
     # 运行
     try:

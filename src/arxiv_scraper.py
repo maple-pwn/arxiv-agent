@@ -100,11 +100,151 @@ class ArxivScraper:
                 papers.append(paper_data)
 
             self.logger.info(f"成功获取 {len(papers)} 篇论文")
+
+            # 计算相关度评分
+            papers = self._calculate_relevance_scores(papers)
+
+            # 应用多级排序（如果配置了）
+            papers = self._apply_multi_level_sort(papers)
+
             return papers
 
         except Exception as e:
             self.logger.error(f"搜索论文时出错: {str(e)}")
             raise
+
+    def _calculate_relevance_scores(self, papers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        计算论文相关度评分
+
+        基于用户搜索关键词，为每篇论文计算相关度评分（0.0-1.0）
+
+        Args:
+            papers: 论文列表
+
+        Returns:
+            添加了相关度评分的论文列表
+        """
+        keywords = self.arxiv_config.get('keywords', [])
+        enable_relevance = self.arxiv_config.get('enable_relevance_score', True)
+
+        if not enable_relevance or not keywords:
+            self.logger.debug("相关度评分未启用或无关键词，跳过")
+            for paper in papers:
+                paper['relevance_score'] = 1.0  # 默认满分
+            return papers
+
+        self.logger.info(f"开始计算论文相关度评分（基于 {len(keywords)} 个关键词）...")
+
+        for paper in papers:
+            try:
+                # 提取论文文本
+                title = paper.get('title', '').lower()
+                summary = paper.get('summary', '').lower()
+                categories = ' '.join(paper.get('categories', [])).lower()
+
+                # 计算匹配分数
+                total_score = 0.0
+                max_score = 0.0
+
+                for keyword in keywords:
+                    keyword_lower = keyword.lower()
+
+                    # 标题匹配（权重: 5.0）
+                    if keyword_lower in title:
+                        total_score += 5.0
+                    max_score += 5.0
+
+                    # 摘要匹配（权重: 3.0）
+                    # 计算关键词在摘要中出现的次数
+                    summary_count = summary.count(keyword_lower)
+                    if summary_count > 0:
+                        # 出现次数越多分数越高，但有上限
+                        total_score += min(summary_count * 0.5, 3.0)
+                    max_score += 3.0
+
+                    # 分类匹配（权重: 2.0）
+                    if keyword_lower in categories:
+                        total_score += 2.0
+                    max_score += 2.0
+
+                # 归一化到 0.0-1.0
+                if max_score > 0:
+                    relevance_score = min(total_score / max_score, 1.0)
+                else:
+                    relevance_score = 0.0
+
+                paper['relevance_score'] = round(relevance_score, 3)
+
+            except Exception as e:
+                self.logger.warning(f"计算相关度评分失败 ({paper.get('arxiv_id', 'unknown')}): {str(e)}")
+                paper['relevance_score'] = 0.5  # 默认中等评分
+
+        # 统计评分分布
+        scores = [p['relevance_score'] for p in papers]
+        if scores:
+            avg_score = sum(scores) / len(scores)
+            max_score = max(scores)
+            min_score = min(scores)
+            self.logger.info(
+                f"相关度评分完成 - 平均: {avg_score:.3f}, 最高: {max_score:.3f}, 最低: {min_score:.3f}"
+            )
+
+        return papers
+
+    def _apply_multi_level_sort(self, papers: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        应用多级排序
+
+        Args:
+            papers: 论文列表
+
+        Returns:
+            排序后的论文列表
+        """
+        # 获取多级排序配置
+        multi_sort = self.arxiv_config.get('multi_level_sort', [])
+
+        if not multi_sort or not isinstance(multi_sort, list):
+            self.logger.debug("未配置多级排序，使用默认排序")
+            return papers
+
+        self.logger.info(f"应用多级排序: {len(multi_sort)} 个排序条件")
+
+        # 定义排序字段映射
+        def get_sort_key(paper: Dict[str, Any], field: str):
+            """获取论文的排序键值"""
+            if field == 'submittedDate' or field == 'published':
+                return paper.get('published', '')
+            elif field == 'lastUpdatedDate' or field == 'updated':
+                return paper.get('updated', '')
+            elif field == 'relevance_score':
+                # 相关度评分（如果有）
+                return paper.get('relevance_score', 0.0)
+            elif field == 'title':
+                return paper.get('title', '')
+            else:
+                return ''
+
+        # 构建排序键函数（支持多级排序）
+        # Python sorted是稳定排序，所以需要反向遍历排序条件
+        for sort_config in reversed(multi_sort):
+            field = sort_config.get('field', 'submittedDate')
+            order = sort_config.get('order', 'descending')
+
+            reverse = (order == 'descending')
+
+            try:
+                papers = sorted(
+                    papers,
+                    key=lambda p: get_sort_key(p, field),
+                    reverse=reverse
+                )
+                self.logger.debug(f"按 {field} ({order}) 排序完成")
+            except Exception as e:
+                self.logger.warning(f"排序失败 (字段: {field}): {str(e)}")
+
+        return papers
 
     def _get_sort_criterion(self) -> arxiv.SortCriterion:
         """获取排序标准"""
