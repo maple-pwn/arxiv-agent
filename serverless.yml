@@ -1,0 +1,81 @@
+# Serverless Framework 配置文件
+# 用于部署到AWS Lambda、阿里云函数计算等平台
+
+service: arxiv-paper-agent
+
+frameworkVersion: '3'
+
+provider:
+  name: aws  # 可选: aws, aliyun, tencent
+  runtime: python3.9
+  region: us-east-1  # 根据需要修改
+  timeout: 300  # 5分钟超时（论文抓取可能需要较长时间）
+  memorySize: 512  # 512MB内存
+
+  # 环境变量（从.env文件或CI/CD配置）
+  environment:
+    ARXIV_KEYWORDS: ${env:ARXIV_KEYWORDS, 'machine learning,deep learning'}
+    ARXIV_CATEGORIES: ${env:ARXIV_CATEGORIES, 'cs.AI,cs.LG'}
+    ARXIV_MAX_RESULTS: ${env:ARXIV_MAX_RESULTS, '10'}
+    ARXIV_SORT_BY: ${env:ARXIV_SORT_BY, 'submittedDate'}
+    ARXIV_SORT_ORDER: ${env:ARXIV_SORT_ORDER, 'descending'}
+
+    AI_ENABLED: ${env:AI_ENABLED, 'true'}
+    AI_PROVIDER: ${env:AI_PROVIDER, 'openai'}
+    OPENAI_API_KEY: ${env:OPENAI_API_KEY}
+    OPENAI_BASE_URL: ${env:OPENAI_BASE_URL, 'https://api.openai.com/v1'}
+    OPENAI_MODEL: ${env:OPENAI_MODEL, 'gpt-3.5-turbo'}
+
+    NOTIFICATION_ENABLED: ${env:NOTIFICATION_ENABLED, 'true'}
+    NOTIFICATION_METHOD: ${env:NOTIFICATION_METHOD, 'email'}
+
+    EMAIL_SMTP_SERVER: ${env:EMAIL_SMTP_SERVER}
+    EMAIL_SMTP_PORT: ${env:EMAIL_SMTP_PORT, '587'}
+    EMAIL_SENDER: ${env:EMAIL_SENDER}
+    EMAIL_PASSWORD: ${env:EMAIL_PASSWORD}
+    EMAIL_RECIPIENTS: ${env:EMAIL_RECIPIENTS}
+
+    STORAGE_AUTO_CLEANUP: ${env:STORAGE_AUTO_CLEANUP, 'true'}
+    STORAGE_FORMAT: ${env:STORAGE_FORMAT, 'both'}
+
+functions:
+  arxivScraper:
+    handler: serverless_handler.lambda_handler
+    description: ArXiv论文自动抓取和推送
+    events:
+      # 定时触发（每天早上9点UTC）
+      - schedule:
+          rate: cron(0 9 * * ? *)
+          enabled: true
+      # HTTP触发（可选）
+      # - http:
+      #     path: arxiv/scrape
+      #     method: post
+
+# 打包配置
+package:
+  individually: false
+  patterns:
+    - '!.git/**'
+    - '!.gitignore'
+    - '!.env'
+    - '!*.md'
+    - '!tests/**'
+    - '!data/**'
+    - '!logs/**'
+    - '!venv/**'
+    - '!.vscode/**'
+    - '!__pycache__/**'
+    - '!*.pyc'
+
+# 插件
+plugins:
+  - serverless-python-requirements
+
+# 插件配置
+custom:
+  pythonRequirements:
+    dockerizePip: true  # 使用Docker构建依赖
+    slim: true  # 删除不必要的文件以减小包大小
+    strip: false
+    layer: false

@@ -1,0 +1,136 @@
+# ArXiv 论文抓取配置文件模板
+# 复制此文件为 config.yaml 并修改相应配置
+
+# ArXiv 搜索配置
+arxiv:
+  # 搜索关键词（支持多个关键词，使用 OR 连接）
+  keywords:
+    - "machine learning"
+    - "deep learning"
+    - "neural network"
+
+  # ArXiv 分类（可选，留空则搜索所有分类）
+  # 常用分类：cs.AI, cs.LG, cs.CV, cs.CL, stat.ML
+  categories:
+    - "cs.AI"
+    - "cs.LG"
+
+  # 每次抓取的最大论文数量
+  max_results: 50
+
+  # 排序方式：submittedDate (提交日期), lastUpdatedDate (最后更新日期), relevance (相关性)
+  sort_by: "submittedDate"
+
+  # 排序顺序：descending (降序), ascending (升序)
+  sort_order: "descending"
+
+# 调度配置
+schedule:
+  # 是否启用定时任务
+  enabled: true
+
+  # 执行时间（24小时制，格式：HH:MM）
+  time: "09:00"
+
+  # 或者使用间隔时间（单位：小时）
+  # interval_hours: 24
+
+# 数据存储配置
+storage:
+  # 数据保存路径
+  data_dir: "./data/papers"
+
+  # 保存格式：json, csv, both
+  format: "both"
+
+  # 是否下载 PDF
+  download_pdf: false
+
+  # PDF 保存路径
+  pdf_dir: "./data/pdfs"
+
+  # 邮件发送后自动删除本地文件（包括 papers 和 reports）
+  auto_cleanup: true
+
+# 日志配置
+logging:
+  # 日志级别：DEBUG, INFO, WARNING, ERROR, CRITICAL
+  level: "INFO"
+
+  # 日志文件路径
+  file: "./logs/arxiv_scraper.log"
+
+  # 是否同时输出到控制台
+  console: true
+
+  # 日志文件最大大小（MB）
+  max_size: 10
+
+  # 保留的日志文件数量
+  backup_count: 5
+
+# 通知配置（可选）
+notification:
+  # 是否启用通知
+  enabled: false
+
+  # 通知方式：email, webhook
+  method: "email"
+
+  # 邮件配置
+  email:
+    smtp_server: "smtp.gmail.com"
+    smtp_port: 587
+    sender: "your-email@gmail.com"
+    password: "your-password"
+    recipients:
+      - "recipient@example.com"
+
+  # Webhook 配置
+  webhook:
+    url: "https://your-webhook-url.com"
+    method: "POST"
+
+# AI 功能配置（可选）
+ai:
+  # 是否启用 AI 功能（论文总结和翻译）
+  enabled: false
+
+  # AI 服务提供商：openai, anthropic (claude), ollama
+  provider: "openai"
+
+  # 是否总结论文
+  enable_summary: true
+
+  # 是否翻译摘要
+  enable_translation: true
+
+  # 是否提取关键洞察（Key Insights）
+  enable_insights: true
+
+  # 是否生成 Markdown 报告并发送邮件
+  send_markdown_report: false
+
+  # Markdown 报告保存路径
+  markdown_dir: "./data/reports"
+
+  # OpenAI 配置
+  openai:
+    api_key: "your-openai-api-key"
+    model: "gpt-3.5-turbo"  # 或 gpt-4, gpt-4-turbo-preview
+    base_url: "https://api.openai.com/v1"  # 可自定义为兼容的 API 地址
+    max_tokens: 1000
+    temperature: 0.7
+
+  # Anthropic Claude 配置
+  anthropic:
+    api_key: "your-anthropic-api-key"
+    model: "claude-3-5-sonnet-20241022"  # 或其他 Claude 模型
+    base_url: "https://api.anthropic.com/v1"
+    max_tokens: 1000
+    temperature: 0.7
+
+  # Ollama 本地模型配置
+  ollama:
+    model: "llama2"  # 或其他本地模型：mistral, codellama 等
+    base_url: "http://localhost:11434"  # Ollama 服务地址
