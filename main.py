@@ -13,11 +13,12 @@ import time
 from datetime import datetime
 
 # 添加 src 目录到 Python 路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 from src.config import ConfigManager
 from src.arxiv_scraper import ArxivScraper
 from src.utils import setup_logging, send_notification, ensure_directories
+from src.config_wizard import run_config_wizard, save_config
 from config_migration import ConfigMigration
 
 
@@ -38,16 +39,16 @@ def run_scraper(config_manager: ConfigManager) -> None:
         result = scraper.run()
 
         # 发送通知
-        if result['success']:
-            notification_config = config_manager.get('notification', {})
-            if notification_config.get('enabled', False):
-                summary = result.get('paper_summary')
+        if result["success"]:
+            notification_config = config_manager.get("notification", {})
+            if notification_config.get("enabled", False):
+                summary = result.get("paper_summary")
                 if summary:
                     message = summary
                 else:
                     message = f"成功抓取 {result['paper_count']} 篇论文"
 
-                if result.get('markdown_report'):
+                if result.get("markdown_report"):
                     message += f"\n报告: {result['markdown_report']}"
 
                 message += f"\n执行时间: {result['timestamp']}"
@@ -57,20 +58,20 @@ def run_scraper(config_manager: ConfigManager) -> None:
         logger.error(f"执行抓取任务时出错: {str(e)}", exc_info=True)
 
         # 发送错误通知
-        notification_config = config_manager.get('notification', {})
-        if notification_config.get('enabled', False):
+        notification_config = config_manager.get("notification", {})
+        if notification_config.get("enabled", False):
             message = f"抓取任务执行失败\n错误信息: {str(e)}"
             send_notification(notification_config, message, "ArXiv 论文抓取失败")
 
 
 def check_config_migration() -> None:
     """检查配置文件是否需要迁移"""
-    if not os.path.exists('config.yaml') or not os.path.exists('config.yaml.template'):
+    if not os.path.exists("config.yaml") or not os.path.exists("config.yaml.template"):
         return
 
     # 检查模板文件是否比配置文件新
-    template_mtime = os.path.getmtime('config.yaml.template')
-    config_mtime = os.path.getmtime('config.yaml')
+    template_mtime = os.path.getmtime("config.yaml.template")
+    config_mtime = os.path.getmtime("config.yaml")
 
     if template_mtime > config_mtime:
         print("\n" + "=" * 60)
@@ -93,7 +94,7 @@ def run_once(config_path: str) -> None:
     config_manager = ConfigManager(config_path)
 
     # 设置日志
-    logging_config = config_manager.get('logging', {})
+    logging_config = config_manager.get("logging", {})
     setup_logging(logging_config)
 
     # 确保目录存在
@@ -117,7 +118,7 @@ def run_scheduled(config_path: str) -> None:
     config_manager = ConfigManager(config_path)
 
     # 设置日志
-    logging_config = config_manager.get('logging', {})
+    logging_config = config_manager.get("logging", {})
     setup_logging(logging_config)
 
     # 确保目录存在
@@ -126,22 +127,22 @@ def run_scheduled(config_path: str) -> None:
     logger = logging.getLogger(__name__)
 
     # 获取调度配置
-    schedule_config = config_manager.get('schedule', {})
+    schedule_config = config_manager.get("schedule", {})
 
-    if not schedule_config.get('enabled', False):
+    if not schedule_config.get("enabled", False):
         logger.warning("调度功能未启用，使用单次模式")
         run_scraper(config_manager)
         return
 
     # 设置定时任务
-    schedule_time = schedule_config.get('time', '09:00')
+    schedule_time = schedule_config.get("time", "09:00")
     schedule.every().day.at(schedule_time).do(run_scraper, config_manager)
 
     logger.info(f"调度模式已启动，将在每天 {schedule_time} 执行抓取任务")
     logger.info("按 Ctrl+C 停止")
 
     # 立即执行一次（可选）
-    if schedule_config.get('run_on_start', False):
+    if schedule_config.get("run_on_start", False):
         logger.info("执行启动时抓取")
         run_scraper(config_manager)
 
@@ -156,19 +157,25 @@ def run_scheduled(config_path: str) -> None:
 
 def create_sample_config() -> None:
     """创建示例配置文件"""
-    if os.path.exists('config.yaml'):
+    if os.path.exists("config.yaml"):
         print("配置文件 config.yaml 已存在")
         print("\n请选择操作:")
-        print("  1. 智能合并（推荐）- 保留现有配置，添加模板中的新配置项")
-        print("  2. 覆盖 - 使用模板完全覆盖现有配置")
-        print("  3. 取消")
+        print("  1. 交互式配置向导（推荐）- 逐步引导填写配置")
+        print("  2. 智能合并 - 保留现有配置，添加模板中的新配置项")
+        print("  3. 覆盖 - 使用模板完全覆盖现有配置")
+        print("  4. 取消")
 
-        response = input("\n请输入选项 (1/2/3): ").strip()
+        response = input("\n请输入选项 (1/2/3/4): ").strip()
 
-        if response == '1':
-            # 使用配置迁移工具进行智能合并
+        if response == "1":
+            config = run_config_wizard()
+            if config:
+                save_config(config, "config.yaml")
+            return
+
+        elif response == "2":
             print("\n使用配置迁移工具进行智能合并...")
-            migration = ConfigMigration('config.yaml.template', 'config.yaml')
+            migration = ConfigMigration("config.yaml.template", "config.yaml")
             success, message = migration.migrate(dry_run=False)
 
             if not success:
@@ -176,51 +183,62 @@ def create_sample_config() -> None:
                 sys.exit(1)
             return
 
-        elif response == '2':
-            # 覆盖模式
+        elif response == "3":
             confirm = input("确认要覆盖现有配置? 此操作不可恢复! (yes/N): ")
-            if confirm.lower() != 'yes':
+            if confirm.lower() != "yes":
                 print("取消覆盖")
                 return
         else:
             print("取消创建")
             return
 
+    print("\n请选择创建方式:")
+    print("  1. 交互式配置向导（推荐）- 逐步引导填写配置")
+    print("  2. 从模板创建 - 复制模板文件后手动修改")
+
+    choice = input("\n请输入选项 (1/2): ").strip()
+
+    if choice == "1":
+        config = run_config_wizard()
+        if config:
+            save_config(config, "config.yaml")
+            print("\n📝 配置已完成，可直接运行 'python main.py' 开始抓取")
+        return
+
     try:
-        # 复制模板文件
-        if os.path.exists('config.yaml.template'):
+        if os.path.exists("config.yaml.template"):
             import shutil
-            shutil.copy('config.yaml.template', 'config.yaml')
+
+            shutil.copy("config.yaml.template", "config.yaml")
             print("✅ 已从模板创建配置文件: config.yaml")
         else:
-            # 创建简单的配置文件
             import yaml
+
             default_config = {
-                'arxiv': {
-                    'keywords': ['machine learning'],
-                    'categories': ['cs.AI', 'cs.LG'],
-                    'max_results': 50,
-                    'sort_by': 'submittedDate',
-                    'sort_order': 'descending'
+                "arxiv": {
+                    "keywords": ["machine learning"],
+                    "categories": ["cs.AI", "cs.LG"],
+                    "max_results": 50,
+                    "sort_by": "submittedDate",
+                    "sort_order": "descending",
                 },
-                'schedule': {
-                    'enabled': True,
-                    'time': '09:00'
+                "schedule": {"enabled": True, "time": "09:00"},
+                "storage": {
+                    "data_dir": "./data/papers",
+                    "format": "both",
+                    "download_pdf": False,
                 },
-                'storage': {
-                    'data_dir': './data/papers',
-                    'format': 'both',
-                    'download_pdf': False
+                "logging": {
+                    "level": "INFO",
+                    "file": "./logs/arxiv_scraper.log",
+                    "console": True,
                 },
-                'logging': {
-                    'level': 'INFO',
-                    'file': './logs/arxiv_scraper.log',
-                    'console': True
-                }
             }
 
-            with open('config.yaml', 'w', encoding='utf-8') as f:
-                yaml.dump(default_config, f, default_flow_style=False, allow_unicode=True)
+            with open("config.yaml", "w", encoding="utf-8") as f:
+                yaml.dump(
+                    default_config, f, default_flow_style=False, allow_unicode=True
+                )
 
             print("✅ 已创建默认配置文件: config.yaml")
 
@@ -235,7 +253,7 @@ def create_sample_config() -> None:
 def main():
     """主函数"""
     parser = argparse.ArgumentParser(
-        description='ArXiv 论文自动抓取工具',
+        description="ArXiv 论文自动抓取工具",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
@@ -243,31 +261,21 @@ def main():
   %(prog)s --schedule         # 以调度模式运行
   %(prog)s --config my.yaml   # 使用指定配置文件
   %(prog)s --init             # 创建示例配置文件
-        """
+        """,
     )
 
     parser.add_argument(
-        '-c', '--config',
-        default='config.yaml',
-        help='配置文件路径 (默认: config.yaml)'
+        "-c", "--config", default="config.yaml", help="配置文件路径 (默认: config.yaml)"
     )
 
     parser.add_argument(
-        '-s', '--schedule',
-        action='store_true',
-        help='以调度模式运行（定时执行）'
+        "-s", "--schedule", action="store_true", help="以调度模式运行（定时执行）"
     )
 
-    parser.add_argument(
-        '--init',
-        action='store_true',
-        help='创建示例配置文件'
-    )
+    parser.add_argument("--init", action="store_true", help="创建示例配置文件")
 
     parser.add_argument(
-        '-v', '--version',
-        action='version',
-        version='ArXiv Scraper 1.0.0'
+        "-v", "--version", action="version", version="ArXiv Scraper 1.0.0"
     )
 
     args = parser.parse_args()
@@ -284,7 +292,7 @@ def main():
         sys.exit(1)
 
     # 检查配置是否需要迁移
-    if args.config == 'config.yaml':
+    if args.config == "config.yaml":
         check_config_migration()
 
     # 运行
@@ -298,5 +306,5 @@ def main():
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

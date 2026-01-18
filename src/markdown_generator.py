@@ -20,7 +20,7 @@ class MarkdownGenerator:
         papers: List[Dict[str, Any]],
         include_ai_summary: bool = True,
         include_translation: bool = True,
-        include_insights: bool = True
+        include_insights: bool = True,
     ) -> str:
         """
         生成论文总结的 Markdown 文档
@@ -48,9 +48,9 @@ class MarkdownGenerator:
         lines.append("## 目录")
         lines.append("")
         for i, paper in enumerate(papers, 1):
-            title = paper.get('title', 'N/A')
+            title = paper.get("title", "N/A")
             # 清理标题中的特殊字符
-            title = title.replace('[', '').replace(']', '').replace('#', '')
+            title = title.replace("[", "").replace("]", "").replace("#", "")
             anchor = self._make_anchor_id(paper, i)
             lines.append(f"{i}. [{title}](#{anchor})")
         lines.append("")
@@ -77,7 +77,7 @@ class MarkdownGenerator:
             lines.append("- AI 总结: 由 AI 模型自动生成，仅供参考")
         lines.append("")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def _generate_single_paper(
         self,
@@ -85,7 +85,7 @@ class MarkdownGenerator:
         index: int,
         include_ai_summary: bool,
         include_translation: bool,
-        include_insights: bool = True
+        include_insights: bool = True,
     ) -> str:
         """
         生成单篇论文的 Markdown
@@ -103,7 +103,7 @@ class MarkdownGenerator:
         lines = []
 
         # 标题
-        title = paper.get('title', 'N/A')
+        title = paper.get("title", "N/A")
         anchor = self._make_anchor_id(paper, index)
         lines.append(f'<a id="{anchor}"></a>')
         lines.append(f"## {index}. {title}")
@@ -114,50 +114,52 @@ class MarkdownGenerator:
         lines.append("")
 
         # ArXiv ID 和链接
-        arxiv_id = paper.get('arxiv_id', 'N/A')
-        if arxiv_id != 'N/A':
-            lines.append(f"- **ArXiv ID**: [{arxiv_id}](https://arxiv.org/abs/{arxiv_id})")
-            pdf_url = paper.get('pdf_url', f"https://arxiv.org/pdf/{arxiv_id}")
+        arxiv_id = paper.get("arxiv_id", "N/A")
+        if arxiv_id != "N/A":
+            lines.append(
+                f"- **ArXiv ID**: [{arxiv_id}](https://arxiv.org/abs/{arxiv_id})"
+            )
+            pdf_url = paper.get("pdf_url", f"https://arxiv.org/pdf/{arxiv_id}")
             lines.append(f"- **PDF 链接**: [下载]({pdf_url})")
         else:
             lines.append(f"- **ArXiv ID**: {arxiv_id}")
 
         # 作者
-        authors = paper.get('authors', [])
+        authors = paper.get("authors", [])
         if authors:
-            author_str = ', '.join(authors[:5])
+            author_str = ", ".join(authors[:5])
             if len(authors) > 5:
-                author_str += f' 等 {len(authors)} 位作者'
+                author_str += f" 等 {len(authors)} 位作者"
             lines.append(f"- **作者**: {author_str}")
 
         # 发布时间
-        published = paper.get('published', 'N/A')
-        if published != 'N/A':
-            # 格式化时间
+        published = paper.get("published", "N/A")
+        if published != "N/A":
             try:
                 from dateutil import parser
+
                 pub_date = parser.parse(published)
                 lines.append(f"- **发布时间**: {pub_date.strftime('%Y-%m-%d')}")
-            except:
+            except (ValueError, TypeError):
                 lines.append(f"- **发布时间**: {published}")
 
         # 分类
-        categories = paper.get('categories', [])
+        categories = paper.get("categories", [])
         if categories:
-            cat_badges = ' '.join([f"`{cat}`" for cat in categories[:5]])
+            cat_badges = " ".join([f"`{cat}`" for cat in categories[:5]])
             lines.append(f"- **分类**: {cat_badges}")
 
         lines.append("")
 
         # 关键洞察（放在最前面，方便快速浏览）
-        if include_insights and 'insights' in paper:
+        if include_insights and "insights" in paper:
             lines.append("### 💡 关键洞察")
             lines.append("")
-            insights_data = paper.get('insights', {})
-            insights_list = insights_data.get('insights', [])
-            status = insights_data.get('status', 'unknown')
+            insights_data = paper.get("insights", {})
+            insights_list = insights_data.get("insights", [])
+            status = insights_data.get("status", "unknown")
 
-            if status == 'success' and insights_list:
+            if status == "success" and insights_list:
                 for insight in insights_list:
                     lines.append(f"- {insight}")
             else:
@@ -167,20 +169,20 @@ class MarkdownGenerator:
         # 原文摘要
         lines.append("### 📝 原文摘要")
         lines.append("")
-        summary = paper.get('summary', 'N/A')
-        if summary != 'N/A':
+        summary = paper.get("summary", "N/A")
+        if summary != "N/A":
             # 清理摘要文本
-            summary = summary.strip().replace('\n', ' ')
+            summary = summary.strip().replace("\n", " ")
             lines.append(f"> {summary}")
         else:
             lines.append("> 暂无摘要")
         lines.append("")
 
         # 翻译
-        if include_translation and 'translation' in paper:
+        if include_translation and "translation" in paper:
             lines.append("### 🌐 中文翻译")
             lines.append("")
-            translation = paper.get('translation', '')
+            translation = paper.get("translation", "")
             if translation:
                 lines.append(f"> {translation}")
             else:
@@ -188,23 +190,23 @@ class MarkdownGenerator:
             lines.append("")
 
         # AI 总结
-        if include_ai_summary and 'ai_summary' in paper:
+        if include_ai_summary and "ai_summary" in paper:
             lines.append("### 🤖 AI 智能总结")
             lines.append("")
-            ai_summary = paper.get('ai_summary', {})
-            summary_text = ai_summary.get('summary', '')
-            status = ai_summary.get('status', 'unknown')
+            ai_summary = paper.get("ai_summary", {})
+            summary_text = ai_summary.get("summary", "")
+            status = ai_summary.get("status", "unknown")
 
-            if status == 'success' and summary_text:
+            if status == "success" and summary_text:
                 lines.append(summary_text)
             else:
                 lines.append("> AI 总结生成失败或未启用")
             lines.append("")
 
         # 额外信息（如果有）
-        comment = paper.get('comment')
-        journal_ref = paper.get('journal_ref')
-        doi = paper.get('doi')
+        comment = paper.get("comment")
+        journal_ref = paper.get("journal_ref")
+        doi = paper.get("doi")
 
         if any([comment, journal_ref, doi]):
             lines.append("### ℹ️ 其他信息")
@@ -217,7 +219,7 @@ class MarkdownGenerator:
                 lines.append(f"- **DOI**: [{doi}](https://doi.org/{doi})")
             lines.append("")
 
-        return '\n'.join(lines)
+        return "\n".join(lines)
 
     def _slugify(self, text: str) -> str:
         """
@@ -231,8 +233,8 @@ class MarkdownGenerator:
         """
         # 简单实现：移除特殊字符，替换空格为连字符
         text = text.lower()
-        text = ''.join(c if c.isalnum() or c.isspace() else '' for c in text)
-        text = '-'.join(text.split())
+        text = "".join(c if c.isalnum() or c.isspace() else "" for c in text)
+        text = "-".join(text.split())
         return text[:50]  # 限制长度
 
     def _make_anchor_id(self, paper: Dict[str, Any], index: int) -> str:
@@ -246,11 +248,11 @@ class MarkdownGenerator:
         Returns:
             锚点 ID
         """
-        arxiv_id = paper.get('arxiv_id')
+        arxiv_id = paper.get("arxiv_id")
         if arxiv_id:
             return f"paper-{self._slugify(str(arxiv_id))}"
 
-        title = paper.get('title', 'N/A')
+        title = paper.get("title", "N/A")
         return f"paper-{index}-{self._slugify(title)}"
 
     def save_to_file(self, content: str, file_path: str) -> bool:
@@ -265,7 +267,7 @@ class MarkdownGenerator:
             是否保存成功
         """
         try:
-            with open(file_path, 'w', encoding='utf-8') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 f.write(content)
 
             self.logger.info(f"Markdown 文档已保存到: {file_path}")
@@ -287,9 +289,9 @@ class MarkdownGenerator:
         """
         try:
             import markdown
+
             html = markdown.markdown(
-                markdown_content,
-                extensions=['extra', 'codehilite', 'toc']
+                markdown_content, extensions=["extra", "codehilite", "toc"]
             )
             return self._wrap_html(html)
         except ImportError:

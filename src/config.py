@@ -1,12 +1,60 @@
 """
 配置管理模块
 负责加载、验证和管理配置文件
+支持环境变量覆盖敏感配置
 """
 
 import os
+import re
 import yaml
 import logging
 from typing import Dict, Any
+
+
+# 环境变量映射表：环境变量名 -> 配置路径
+ENV_VAR_MAPPING = {
+    "ARXIV_OPENAI_API_KEY": "ai.openai.api_key",
+    "ARXIV_OPENAI_BASE_URL": "ai.openai.base_url",
+    "ARXIV_ANTHROPIC_API_KEY": "ai.anthropic.api_key",
+    "ARXIV_SMTP_PASSWORD": "notification.email.password",
+    "ARXIV_SMTP_SENDER": "notification.email.sender",
+    "ARXIV_WEBHOOK_URL": "notification.webhook.url",
+}
+
+
+def _resolve_env_vars(value: str) -> str:
+    """
+    解析字符串中的环境变量引用 ${VAR_NAME} 或 $VAR_NAME
+    """
+    if not isinstance(value, str):
+        return value
+
+    pattern = r"\$\{([^}]+)\}|\$([A-Z_][A-Z0-9_]*)"
+
+    def replacer(match: re.Match[str]) -> str:
+        var_name = match.group(1) or match.group(2)
+        return os.environ.get(var_name, match.group(0))
+
+    return re.sub(pattern, replacer, value)
+
+
+def _apply_env_vars_recursive(config: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    递归处理配置中的环境变量引用
+    """
+    result = {}
+    for key, value in config.items():
+        if isinstance(value, dict):
+            result[key] = _apply_env_vars_recursive(value)
+        elif isinstance(value, str):
+            result[key] = _resolve_env_vars(value)
+        elif isinstance(value, list):
+            result[key] = [
+                _resolve_env_vars(v) if isinstance(v, str) else v for v in value
+            ]
+        else:
+            result[key] = value
+    return result
 
 
 class ConfigManager:
@@ -14,41 +62,35 @@ class ConfigManager:
 
     # 默认配置
     DEFAULT_CONFIG = {
-        'arxiv': {
-            'keywords': ['machine learning'],
-            'categories': [],
-            'max_results': 50,
-            'sort_by': 'submittedDate',
-            'sort_order': 'descending'
+        "arxiv": {
+            "keywords": ["machine learning"],
+            "categories": [],
+            "max_results": 50,
+            "sort_by": "submittedDate",
+            "sort_order": "descending",
         },
-        'schedule': {
-            'enabled': False,
-            'time': '09:00'
+        "schedule": {"enabled": False, "time": "09:00"},
+        "storage": {
+            "data_dir": "./data/papers",
+            "format": "both",
+            "download_pdf": False,
+            "pdf_dir": "./data/pdfs",
+            "cache_enabled": True,
+            "cache_file": "./data/papers/cache.json",
+            "cache_max_items": 5000,
+            "skip_processed": False,
         },
-        'storage': {
-            'data_dir': './data/papers',
-            'format': 'both',
-            'download_pdf': False,
-            'pdf_dir': './data/pdfs',
-            'cache_enabled': True,
-            'cache_file': './data/papers/cache.json',
-            'cache_max_items': 5000,
-            'skip_processed': False
+        "logging": {
+            "level": "INFO",
+            "file": "./logs/arxiv_scraper.log",
+            "console": True,
+            "max_size": 10,
+            "backup_count": 5,
         },
-        'logging': {
-            'level': 'INFO',
-            'file': './logs/arxiv_scraper.log',
-            'console': True,
-            'max_size': 10,
-            'backup_count': 5
-        },
-        'notification': {
-            'enabled': False,
-            'method': 'email'
-        }
+        "notification": {"enabled": False, "method": "email"},
     }
 
-    def __init__(self, config_path: str = 'config.yaml'):
+    def __init__(self, config_path: str = "config.yaml"):
         """
         初始化配置管理器
 
@@ -71,18 +113,21 @@ class ConfigManager:
             return self.DEFAULT_CONFIG.copy()
 
         try:
-            with open(self.config_path, 'r', encoding='utf-8') as f:
+            with open(self.config_path, "r", encoding="utf-8") as f:
                 user_config = yaml.safe_load(f)
 
             if user_config is None:
                 self.logger.warning("配置文件为空，使用默认配置")
                 return self.DEFAULT_CONFIG.copy()
 
-            # 合并用户配置和默认配置
             config = self._merge_config(self.DEFAULT_CONFIG, user_config)
+
+            config = _apply_env_vars_recursive(config)
+
+            config = self._apply_env_var_overrides(config)
+
             self.logger.info(f"成功加载配置文件: {self.config_path}")
 
-            # 验证配置
             self._validate_config(config)
 
             return config
@@ -97,7 +142,28 @@ class ConfigManager:
             self.logger.warning("使用默认配置")
             return self.DEFAULT_CONFIG.copy()
 
-    def _merge_config(self, default: Dict[str, Any], user: Dict[str, Any]) -> Dict[str, Any]:
+    def _apply_env_var_overrides(self, config: Dict[str, Any]) -> Dict[str, Any]:
+        """通过环境变量覆盖配置值"""
+        for env_var, config_path in ENV_VAR_MAPPING.items():
+            env_value = os.environ.get(env_var)
+            if env_value:
+                self._set_nested(config, config_path, env_value)
+                self.logger.debug(f"环境变量 {env_var} 覆盖配置 {config_path}")
+        return config
+
+    def _set_nested(self, config: Dict[str, Any], path: str, value: Any) -> None:
+        """设置嵌套配置值"""
+        keys = path.split(".")
+        current = config
+        for key in keys[:-1]:
+            if key not in current:
+                current[key] = {}
+            current = current[key]
+        current[keys[-1]] = value
+
+    def _merge_config(
+        self, default: Dict[str, Any], user: Dict[str, Any]
+    ) -> Dict[str, Any]:
         """
         递归合并配置字典
 
@@ -111,7 +177,11 @@ class ConfigManager:
         result = default.copy()
 
         for key, value in user.items():
-            if key in result and isinstance(result[key], dict) and isinstance(value, dict):
+            if (
+                key in result
+                and isinstance(result[key], dict)
+                and isinstance(value, dict)
+            ):
                 result[key] = self._merge_config(result[key], value)
             else:
                 result[key] = value
@@ -129,32 +199,32 @@ class ConfigManager:
             ValueError: 配置无效时抛出
         """
         # 验证 ArXiv 配置
-        arxiv_config = config.get('arxiv', {})
+        arxiv_config = config.get("arxiv", {})
 
-        max_results = arxiv_config.get('max_results', 50)
+        max_results = arxiv_config.get("max_results", 50)
         if not isinstance(max_results, int) or max_results <= 0:
             raise ValueError(f"max_results 必须是正整数，当前值: {max_results}")
 
-        sort_by = arxiv_config.get('sort_by', 'submittedDate')
-        if sort_by not in ['submittedDate', 'lastUpdatedDate', 'relevance']:
+        sort_by = arxiv_config.get("sort_by", "submittedDate")
+        if sort_by not in ["submittedDate", "lastUpdatedDate", "relevance"]:
             raise ValueError(f"无效的 sort_by 值: {sort_by}")
 
-        sort_order = arxiv_config.get('sort_order', 'descending')
-        if sort_order not in ['descending', 'ascending']:
+        sort_order = arxiv_config.get("sort_order", "descending")
+        if sort_order not in ["descending", "ascending"]:
             raise ValueError(f"无效的 sort_order 值: {sort_order}")
 
         # 验证存储配置
-        storage_config = config.get('storage', {})
+        storage_config = config.get("storage", {})
 
-        save_format = storage_config.get('format', 'both')
-        if save_format not in ['json', 'csv', 'both']:
+        save_format = storage_config.get("format", "both")
+        if save_format not in ["json", "csv", "both"]:
             raise ValueError(f"无效的保存格式: {save_format}")
 
         # 验证日志配置
-        logging_config = config.get('logging', {})
+        logging_config = config.get("logging", {})
 
-        log_level = logging_config.get('level', 'INFO')
-        if log_level not in ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']:
+        log_level = logging_config.get("level", "INFO")
+        if log_level not in ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]:
             raise ValueError(f"无效的日志级别: {log_level}")
 
         self.logger.debug("配置验证通过")
@@ -173,7 +243,7 @@ class ConfigManager:
         if key is None:
             return self.config
 
-        keys = key.split('.')
+        keys = key.split(".")
         value = self.config
 
         for k in keys:
@@ -194,7 +264,7 @@ class ConfigManager:
             key: 配置键（支持点号分隔的路径）
             value: 配置值
         """
-        keys = key.split('.')
+        keys = key.split(".")
         config = self.config
 
         for k in keys[:-1]:
@@ -214,7 +284,7 @@ class ConfigManager:
         save_path = path or self.config_path
 
         try:
-            with open(save_path, 'w', encoding='utf-8') as f:
+            with open(save_path, "w", encoding="utf-8") as f:
                 yaml.dump(self.config, f, default_flow_style=False, allow_unicode=True)
             self.logger.info(f"配置已保存到: {save_path}")
 
@@ -228,7 +298,7 @@ class ConfigManager:
         self.logger.info("配置已重新加载")
 
 
-def load_config(config_path: str = 'config.yaml') -> Dict[str, Any]:
+def load_config(config_path: str = "config.yaml") -> Dict[str, Any]:
     """
     便捷函数：加载配置文件
 
