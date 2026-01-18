@@ -14,6 +14,7 @@ from .utils import create_retry_session
 
 class AIServiceError(Exception):
     """AI 服务异常"""
+
     pass
 
 
@@ -71,7 +72,9 @@ class BaseAIService(ABC):
         pass
 
     @abstractmethod
-    def filter_paper(self, paper: Dict[str, Any], filter_keywords: str) -> Dict[str, Any]:
+    def filter_paper(
+        self, paper: Dict[str, Any], filter_keywords: str
+    ) -> Dict[str, Any]:
         """
         判断论文是否与筛选关键词相关
 
@@ -96,15 +99,15 @@ class OpenAIService(BaseAIService):
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
-        self.api_key = config.get('api_key')
-        self.model = config.get('model', 'gpt-3.5-turbo')
-        self.base_url = config.get('base_url', 'https://api.openai.com/v1')
-        self.max_tokens = config.get('max_tokens', 1000)
-        self.temperature = config.get('temperature', 0.7)
-        self.request_timeout = config.get('request_timeout', 60)
+        self.api_key = config.get("api_key")
+        self.model = config.get("model", "gpt-3.5-turbo")
+        self.base_url = config.get("base_url", "https://api.openai.com/v1")
+        self.max_tokens = config.get("max_tokens", 1000)
+        self.temperature = config.get("temperature", 0.7)
+        self.request_timeout = config.get("request_timeout", 60)
         self.session = create_retry_session(
-            total_retries=int(config.get('max_retries', 3)),
-            backoff_factor=float(config.get('backoff_factor', 0.5))
+            total_retries=int(config.get("max_retries", 3)),
+            backoff_factor=float(config.get("backoff_factor", 0.5)),
         )
         self.prompt_loader = get_prompt_loader()
 
@@ -123,28 +126,28 @@ class OpenAIService(BaseAIService):
         """
         try:
             headers = {
-                'Authorization': f'Bearer {self.api_key}',
-                'Content-Type': 'application/json'
+                "Authorization": f"Bearer {self.api_key}",
+                "Content-Type": "application/json",
             }
 
             data = {
-                'model': self.model,
-                'messages': messages,
-                'max_tokens': self.max_tokens,
-                'temperature': self.temperature
+                "model": self.model,
+                "messages": messages,
+                "max_tokens": self.max_tokens,
+                "temperature": self.temperature,
             }
 
             response = self.session.post(
-                f'{self.base_url}/chat/completions',
+                f"{self.base_url}/chat/completions",
                 headers=headers,
                 json=data,
-                timeout=self.request_timeout
+                timeout=self.request_timeout,
             )
 
             response.raise_for_status()
             result = response.json()
 
-            return result['choices'][0]['message']['content'].strip()
+            return result["choices"][0]["message"]["content"].strip()
 
         except requests.exceptions.RequestException as e:
             self.logger.error(f"OpenAI API 调用失败: {str(e)}")
@@ -152,35 +155,26 @@ class OpenAIService(BaseAIService):
 
     def summarize_paper(self, paper: Dict[str, Any]) -> Dict[str, str]:
         """总结论文"""
-        title = paper.get('title', 'N/A')
-        authors = ', '.join(paper.get('authors', [])[:3])
-        summary = paper.get('summary', '')
+        title = paper.get("title", "N/A")
+        authors = ", ".join(paper.get("authors", [])[:3])
+        summary = paper.get("summary", "")
 
         # 从prompt_loader获取prompt
         system_prompt, user_prompt = self.prompt_loader.get_prompt(
-            'summarize',
-            title=title,
-            authors=authors,
-            summary=summary
+            "summarize", title=title, authors=authors, summary=summary
         )
 
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
+            {"role": "user", "content": user_prompt},
         ]
 
         try:
             summary_text = self._call_api(messages)
-            return {
-                'summary': summary_text,
-                'status': 'success'
-            }
+            return {"summary": summary_text, "status": "success"}
         except Exception as e:
             self.logger.error(f"论文总结失败: {str(e)}")
-            return {
-                'summary': f"总结生成失败: {str(e)}",
-                'status': 'error'
-            }
+            return {"summary": f"总结生成失败: {str(e)}", "status": "error"}
 
     def translate_text(self, text: str, target_lang: str = "zh") -> str:
         """翻译文本"""
@@ -191,14 +185,12 @@ class OpenAIService(BaseAIService):
 
         # 从prompt_loader获取prompt
         system_prompt, user_prompt = self.prompt_loader.get_prompt(
-            'translate',
-            lang_name=lang_name,
-            text=text
+            "translate", lang_name=lang_name, text=text
         )
 
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
+            {"role": "user", "content": user_prompt},
         ]
 
         try:
@@ -209,115 +201,120 @@ class OpenAIService(BaseAIService):
 
     def extract_insights(self, paper: Dict[str, Any]) -> Dict[str, Any]:
         """提取论文关键洞察（增强版）"""
-        title = paper.get('title', 'N/A')
-        summary = paper.get('summary', '')
+        title = paper.get("title", "N/A")
+        summary = paper.get("summary", "")
 
         # 从prompt_loader获取prompt
         system_prompt, user_prompt = self.prompt_loader.get_prompt(
-            'insights',
-            title=title,
-            summary=summary
+            "insights", title=title, summary=summary
         )
 
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
+            {"role": "user", "content": user_prompt},
         ]
 
         try:
             import json as json_lib
+
             response_text = self._call_api(messages)
 
             # 尝试解析 JSON
             try:
                 # 提取 JSON 部分（处理可能的 markdown 代码块）
-                if '```json' in response_text:
-                    response_text = response_text.split('```json')[1].split('```')[0].strip()
-                elif '```' in response_text:
-                    response_text = response_text.split('```')[1].split('```')[0].strip()
+                if "```json" in response_text:
+                    response_text = (
+                        response_text.split("```json")[1].split("```")[0].strip()
+                    )
+                elif "```" in response_text:
+                    response_text = (
+                        response_text.split("```")[1].split("```")[0].strip()
+                    )
 
                 insights_data = json_lib.loads(response_text)
                 return {
-                    'insights': insights_data.get('insights', []),
-                    'status': 'success'
+                    "insights": insights_data.get("insights", []),
+                    "status": "success",
                 }
-            except:
-                # 如果 JSON 解析失败，尝试从文本中提取
+            except (json_lib.JSONDecodeError, ValueError, KeyError):
                 insights = []
-                for line in response_text.split('\n'):
+                for line in response_text.split("\n"):
                     line = line.strip()
-                    if line and (line.startswith('-') or line.startswith('•') or line.startswith('洞察')):
-                        cleaned = line.lstrip('-•').strip()
+                    if line and (
+                        line.startswith("-")
+                        or line.startswith("•")
+                        or line.startswith("洞察")
+                    ):
+                        cleaned = line.lstrip("-•").strip()
                         if cleaned:
                             insights.append(cleaned)
 
                 return {
-                    'insights': insights[:5],  # 最多5个
-                    'status': 'success'
+                    "insights": insights[:5],  # 最多5个
+                    "status": "success",
                 }
 
         except Exception as e:
             self.logger.error(f"提取洞察失败: {str(e)}")
-            return {
-                'insights': [],
-                'status': 'error',
-                'error': str(e)
-            }
+            return {"insights": [], "status": "error", "error": str(e)}
 
-    def filter_paper(self, paper: Dict[str, Any], filter_keywords: str) -> Dict[str, Any]:
+    def filter_paper(
+        self, paper: Dict[str, Any], filter_keywords: str
+    ) -> Dict[str, Any]:
         """判断论文相关性"""
-        title = paper.get('title', 'N/A')
-        summary = paper.get('summary', '')
+        title = paper.get("title", "N/A")
+        summary = paper.get("summary", "")
 
         # 从prompt_loader获取prompt
         system_prompt, user_prompt = self.prompt_loader.get_prompt(
-            'filter',
-            filter_keywords=filter_keywords,
-            title=title,
-            summary=summary
+            "filter", filter_keywords=filter_keywords, title=title, summary=summary
         )
 
         messages = [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt}
+            {"role": "user", "content": user_prompt},
         ]
 
         try:
             import json as json_lib
+
             response_text = self._call_api(messages)
 
             # 尝试解析 JSON
             try:
                 # 提取 JSON 部分（处理可能的 markdown 代码块）
-                if '```json' in response_text:
-                    response_text = response_text.split('```json')[1].split('```')[0].strip()
-                elif '```' in response_text:
-                    response_text = response_text.split('```')[1].split('```')[0].strip()
+                if "```json" in response_text:
+                    response_text = (
+                        response_text.split("```json")[1].split("```")[0].strip()
+                    )
+                elif "```" in response_text:
+                    response_text = (
+                        response_text.split("```")[1].split("```")[0].strip()
+                    )
 
                 filter_result = json_lib.loads(response_text)
                 return {
-                    'relevant': filter_result.get('relevant', False),
-                    'confidence': float(filter_result.get('confidence', 0.0)),
-                    'reason': filter_result.get('reason', ''),
-                    'status': 'success'
+                    "relevant": filter_result.get("relevant", False),
+                    "confidence": float(filter_result.get("confidence", 0.0)),
+                    "reason": filter_result.get("reason", ""),
+                    "status": "success",
                 }
-            except:
-                # JSON 解析失败，返回默认值（保守策略：保留论文）
+            except (json_lib.JSONDecodeError, ValueError, KeyError):
                 self.logger.warning(f"筛选结果JSON解析失败，保留论文: {title[:50]}")
                 return {
-                    'relevant': True,
-                    'confidence': 0.5,
-                    'reason': 'JSON解析失败，默认保留',
-                    'status': 'success'
+                    "relevant": True,
+                    "confidence": 0.5,
+                    "reason": "JSON解析失败，默认保留",
+                    "status": "success",
                 }
 
         except Exception as e:
             self.logger.error(f"论文筛选失败: {str(e)}")
             return {
-                'relevant': True,  # 出错时保留论文
-                'confidence': 0.5,
-                'reason': f'筛选失败: {str(e)}',
-                'status': 'error'
+                "relevant": True,
+                "confidence": 0.5,
+                "reason": f"筛选失败: {str(e)}",
+                "status": "error",
             }
 
 
@@ -326,15 +323,15 @@ class AnthropicService(BaseAIService):
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
-        self.api_key = config.get('api_key')
-        self.model = config.get('model', 'claude-3-5-sonnet-20241022')
-        self.base_url = config.get('base_url', 'https://api.anthropic.com/v1')
-        self.max_tokens = config.get('max_tokens', 1000)
-        self.temperature = config.get('temperature', 0.7)
-        self.request_timeout = config.get('request_timeout', 60)
+        self.api_key = config.get("api_key")
+        self.model = config.get("model", "claude-3-5-sonnet-20241022")
+        self.base_url = config.get("base_url", "https://api.anthropic.com/v1")
+        self.max_tokens = config.get("max_tokens", 1000)
+        self.temperature = config.get("temperature", 0.7)
+        self.request_timeout = config.get("request_timeout", 60)
         self.session = create_retry_session(
-            total_retries=int(config.get('max_retries', 3)),
-            backoff_factor=float(config.get('backoff_factor', 0.5))
+            total_retries=int(config.get("max_retries", 3)),
+            backoff_factor=float(config.get("backoff_factor", 0.5)),
         )
         self.prompt_loader = get_prompt_loader()
 
@@ -354,34 +351,32 @@ class AnthropicService(BaseAIService):
         """
         try:
             headers = {
-                'x-api-key': self.api_key,
-                'anthropic-version': '2023-06-01',
-                'Content-Type': 'application/json'
+                "x-api-key": self.api_key,
+                "anthropic-version": "2023-06-01",
+                "Content-Type": "application/json",
             }
 
             data = {
-                'model': self.model,
-                'max_tokens': self.max_tokens,
-                'temperature': self.temperature,
-                'messages': [
-                    {'role': 'user', 'content': prompt}
-                ]
+                "model": self.model,
+                "max_tokens": self.max_tokens,
+                "temperature": self.temperature,
+                "messages": [{"role": "user", "content": prompt}],
             }
 
             if system:
-                data['system'] = system
+                data["system"] = system
 
             response = self.session.post(
-                f'{self.base_url}/messages',
+                f"{self.base_url}/messages",
                 headers=headers,
                 json=data,
-                timeout=self.request_timeout
+                timeout=self.request_timeout,
             )
 
             response.raise_for_status()
             result = response.json()
 
-            return result['content'][0]['text'].strip()
+            return result["content"][0]["text"].strip()
 
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Anthropic API 调用失败: {str(e)}")
@@ -389,9 +384,9 @@ class AnthropicService(BaseAIService):
 
     def summarize_paper(self, paper: Dict[str, Any]) -> Dict[str, str]:
         """总结论文"""
-        title = paper.get('title', 'N/A')
-        authors = ', '.join(paper.get('authors', [])[:3])
-        summary = paper.get('summary', '')
+        title = paper.get("title", "N/A")
+        authors = ", ".join(paper.get("authors", [])[:3])
+        summary = paper.get("summary", "")
 
         prompt = f"""请对以下学术论文进行总结分析，要求：
 
@@ -411,16 +406,10 @@ class AnthropicService(BaseAIService):
 
         try:
             summary_text = self._call_api(prompt, system)
-            return {
-                'summary': summary_text,
-                'status': 'success'
-            }
+            return {"summary": summary_text, "status": "success"}
         except Exception as e:
             self.logger.error(f"论文总结失败: {str(e)}")
-            return {
-                'summary': f"总结生成失败: {str(e)}",
-                'status': 'error'
-            }
+            return {"summary": f"总结生成失败: {str(e)}", "status": "error"}
 
     def translate_text(self, text: str, target_lang: str = "zh") -> str:
         """翻译文本"""
@@ -440,8 +429,8 @@ class AnthropicService(BaseAIService):
 
     def extract_insights(self, paper: Dict[str, Any]) -> Dict[str, Any]:
         """提取论文关键洞察"""
-        title = paper.get('title', 'N/A')
-        summary = paper.get('summary', '')
+        title = paper.get("title", "N/A")
+        summary = paper.get("summary", "")
 
         prompt = f"""请从以下学术论文中提取 3-5 个关键洞察（Key Insights），每个洞察应该是一句话概括（不超过30个字）。
 
@@ -456,75 +445,75 @@ class AnthropicService(BaseAIService):
         try:
             response_text = self._call_api(prompt, system)
             insights = []
-            for line in response_text.split('\n'):
+            for line in response_text.split("\n"):
                 line = line.strip()
-                if line and (line.startswith('-') or line.startswith('•') or line.startswith('洞察')):
-                    cleaned = line.lstrip('-•').strip()
+                if line and (
+                    line.startswith("-")
+                    or line.startswith("•")
+                    or line.startswith("洞察")
+                ):
+                    cleaned = line.lstrip("-•").strip()
                     if cleaned:
                         insights.append(cleaned)
 
-            return {
-                'insights': insights[:5],
-                'status': 'success'
-            }
+            return {"insights": insights[:5], "status": "success"}
 
         except Exception as e:
             self.logger.error(f"提取洞察失败: {str(e)}")
-            return {
-                'insights': [],
-                'status': 'error',
-                'error': str(e)
-            }
+            return {"insights": [], "status": "error", "error": str(e)}
 
-    def filter_paper(self, paper: Dict[str, Any], filter_keywords: str) -> Dict[str, Any]:
+    def filter_paper(
+        self, paper: Dict[str, Any], filter_keywords: str
+    ) -> Dict[str, Any]:
         """判断论文相关性"""
-        title = paper.get('title', 'N/A')
-        summary = paper.get('summary', '')
+        title = paper.get("title", "N/A")
+        summary = paper.get("summary", "")
 
         # 从prompt_loader获取prompt
         system_prompt, user_prompt = self.prompt_loader.get_prompt(
-            'filter',
-            filter_keywords=filter_keywords,
-            title=title,
-            summary=summary
+            "filter", filter_keywords=filter_keywords, title=title, summary=summary
         )
 
         try:
             import json as json_lib
+
             response_text = self._call_api(user_prompt, system_prompt)
 
             # 尝试解析 JSON
             try:
                 # 提取 JSON 部分（处理可能的 markdown 代码块）
-                if '```json' in response_text:
-                    response_text = response_text.split('```json')[1].split('```')[0].strip()
-                elif '```' in response_text:
-                    response_text = response_text.split('```')[1].split('```')[0].strip()
+                if "```json" in response_text:
+                    response_text = (
+                        response_text.split("```json")[1].split("```")[0].strip()
+                    )
+                elif "```" in response_text:
+                    response_text = (
+                        response_text.split("```")[1].split("```")[0].strip()
+                    )
 
                 filter_result = json_lib.loads(response_text)
                 return {
-                    'relevant': filter_result.get('relevant', False),
-                    'confidence': float(filter_result.get('confidence', 0.0)),
-                    'reason': filter_result.get('reason', ''),
-                    'status': 'success'
+                    "relevant": filter_result.get("relevant", False),
+                    "confidence": float(filter_result.get("confidence", 0.0)),
+                    "reason": filter_result.get("reason", ""),
+                    "status": "success",
                 }
-            except:
-                # JSON 解析失败，返回默认值（保守策略：保留论文）
+            except (json_lib.JSONDecodeError, ValueError, KeyError):
                 self.logger.warning(f"筛选结果JSON解析失败，保留论文: {title[:50]}")
                 return {
-                    'relevant': True,
-                    'confidence': 0.5,
-                    'reason': 'JSON解析失败，默认保留',
-                    'status': 'success'
+                    "relevant": True,
+                    "confidence": 0.5,
+                    "reason": "JSON解析失败，默认保留",
+                    "status": "success",
                 }
 
         except Exception as e:
             self.logger.error(f"论文筛选失败: {str(e)}")
             return {
-                'relevant': True,  # 出错时保留论文
-                'confidence': 0.5,
-                'reason': f'筛选失败: {str(e)}',
-                'status': 'error'
+                "relevant": True,
+                "confidence": 0.5,
+                "reason": f"筛选失败: {str(e)}",
+                "status": "error",
             }
 
 
@@ -533,12 +522,12 @@ class OllamaService(BaseAIService):
 
     def __init__(self, config: Dict[str, Any]):
         super().__init__(config)
-        self.model = config.get('model', 'llama2')
-        self.base_url = config.get('base_url', 'http://localhost:11434')
-        self.request_timeout = config.get('request_timeout', 120)
+        self.model = config.get("model", "llama2")
+        self.base_url = config.get("base_url", "http://localhost:11434")
+        self.request_timeout = config.get("request_timeout", 120)
         self.session = create_retry_session(
-            total_retries=int(config.get('max_retries', 3)),
-            backoff_factor=float(config.get('backoff_factor', 0.5))
+            total_retries=int(config.get("max_retries", 3)),
+            backoff_factor=float(config.get("backoff_factor", 0.5)),
         )
         self.prompt_loader = get_prompt_loader()
 
@@ -554,25 +543,19 @@ class OllamaService(BaseAIService):
             API 响应文本
         """
         try:
-            data = {
-                'model': self.model,
-                'prompt': prompt,
-                'stream': False
-            }
+            data = {"model": self.model, "prompt": prompt, "stream": False}
 
             if system:
-                data['system'] = system
+                data["system"] = system
 
             response = self.session.post(
-                f'{self.base_url}/api/generate',
-                json=data,
-                timeout=self.request_timeout
+                f"{self.base_url}/api/generate", json=data, timeout=self.request_timeout
             )
 
             response.raise_for_status()
             result = response.json()
 
-            return result['response'].strip()
+            return result["response"].strip()
 
         except requests.exceptions.RequestException as e:
             self.logger.error(f"Ollama API 调用失败: {str(e)}")
@@ -580,9 +563,9 @@ class OllamaService(BaseAIService):
 
     def summarize_paper(self, paper: Dict[str, Any]) -> Dict[str, str]:
         """总结论文"""
-        title = paper.get('title', 'N/A')
-        authors = ', '.join(paper.get('authors', [])[:3])
-        summary = paper.get('summary', '')
+        title = paper.get("title", "N/A")
+        authors = ", ".join(paper.get("authors", [])[:3])
+        summary = paper.get("summary", "")
 
         prompt = f"""请对以下学术论文进行总结分析，要求：
 
@@ -602,16 +585,10 @@ class OllamaService(BaseAIService):
 
         try:
             summary_text = self._call_api(prompt, system)
-            return {
-                'summary': summary_text,
-                'status': 'success'
-            }
+            return {"summary": summary_text, "status": "success"}
         except Exception as e:
             self.logger.error(f"论文总结失败: {str(e)}")
-            return {
-                'summary': f"总结生成失败: {str(e)}",
-                'status': 'error'
-            }
+            return {"summary": f"总结生成失败: {str(e)}", "status": "error"}
 
     def translate_text(self, text: str, target_lang: str = "zh") -> str:
         """翻译文本"""
@@ -631,8 +608,8 @@ class OllamaService(BaseAIService):
 
     def extract_insights(self, paper: Dict[str, Any]) -> Dict[str, Any]:
         """提取论文关键洞察"""
-        title = paper.get('title', 'N/A')
-        summary = paper.get('summary', '')
+        title = paper.get("title", "N/A")
+        summary = paper.get("summary", "")
 
         prompt = f"""请从以下学术论文中提取 3-5 个关键洞察（Key Insights），每个洞察应该是一句话概括（不超过30个字）。
 
@@ -647,79 +624,81 @@ class OllamaService(BaseAIService):
         try:
             response_text = self._call_api(prompt, system)
             insights = []
-            for line in response_text.split('\n'):
+            for line in response_text.split("\n"):
                 line = line.strip()
-                if line and (line.startswith('-') or line.startswith('•') or line.startswith('洞察')):
-                    cleaned = line.lstrip('-•').strip()
+                if line and (
+                    line.startswith("-")
+                    or line.startswith("•")
+                    or line.startswith("洞察")
+                ):
+                    cleaned = line.lstrip("-•").strip()
                     if cleaned:
                         insights.append(cleaned)
 
-            return {
-                'insights': insights[:5],
-                'status': 'success'
-            }
+            return {"insights": insights[:5], "status": "success"}
 
         except Exception as e:
             self.logger.error(f"提取洞察失败: {str(e)}")
-            return {
-                'insights': [],
-                'status': 'error',
-                'error': str(e)
-            }
+            return {"insights": [], "status": "error", "error": str(e)}
 
-    def filter_paper(self, paper: Dict[str, Any], filter_keywords: str) -> Dict[str, Any]:
+    def filter_paper(
+        self, paper: Dict[str, Any], filter_keywords: str
+    ) -> Dict[str, Any]:
         """判断论文相关性"""
-        title = paper.get('title', 'N/A')
-        summary = paper.get('summary', '')
+        title = paper.get("title", "N/A")
+        summary = paper.get("summary", "")
 
         # 从prompt_loader获取prompt
         system_prompt, user_prompt = self.prompt_loader.get_prompt(
-            'filter',
-            filter_keywords=filter_keywords,
-            title=title,
-            summary=summary
+            "filter", filter_keywords=filter_keywords, title=title, summary=summary
         )
 
         try:
             import json as json_lib
+
             response_text = self._call_api(user_prompt, system_prompt)
 
             # 尝试解析 JSON
             try:
                 # 提取 JSON 部分（处理可能的 markdown 代码块）
-                if '```json' in response_text:
-                    response_text = response_text.split('```json')[1].split('```')[0].strip()
-                elif '```' in response_text:
-                    response_text = response_text.split('```')[1].split('```')[0].strip()
+                if "```json" in response_text:
+                    response_text = (
+                        response_text.split("```json")[1].split("```")[0].strip()
+                    )
+                elif "```" in response_text:
+                    response_text = (
+                        response_text.split("```")[1].split("```")[0].strip()
+                    )
 
                 filter_result = json_lib.loads(response_text)
                 return {
-                    'relevant': filter_result.get('relevant', False),
-                    'confidence': float(filter_result.get('confidence', 0.0)),
-                    'reason': filter_result.get('reason', ''),
-                    'status': 'success'
+                    "relevant": filter_result.get("relevant", False),
+                    "confidence": float(filter_result.get("confidence", 0.0)),
+                    "reason": filter_result.get("reason", ""),
+                    "status": "success",
                 }
-            except:
-                # JSON 解析失败，返回默认值（保守策略：保留论文）
+            except (json_lib.JSONDecodeError, ValueError, KeyError):
                 self.logger.warning(f"筛选结果JSON解析失败，保留论文: {title[:50]}")
                 return {
-                    'relevant': True,
-                    'confidence': 0.5,
-                    'reason': 'JSON解析失败，默认保留',
-                    'status': 'success'
+                    "relevant": True,
+                    "confidence": 0.5,
+                    "reason": "JSON解析失败，默认保留",
+                    "status": "success",
                 }
 
         except Exception as e:
             self.logger.error(f"论文筛选失败: {str(e)}")
             return {
-                'relevant': True,  # 出错时保留论文
-                'confidence': 0.5,
-                'reason': f'筛选失败: {str(e)}',
-                'status': 'error'
+                "relevant": True,
+                "confidence": 0.5,
+                "reason": f"筛选失败: {str(e)}",
+                "status": "error",
             }
 
 
-def _merge_provider_config(ai_config: Dict[str, Any], provider_key: str) -> Dict[str, Any]:
+def _merge_provider_config(
+    ai_config: Dict[str, Any], provider_key: str
+) -> Dict[str, Any]:
     """
     合并全局 AI 配置与提供商配置
 
@@ -731,7 +710,7 @@ def _merge_provider_config(ai_config: Dict[str, Any], provider_key: str) -> Dict
         合并后的配置字典
     """
     provider_config = dict(ai_config.get(provider_key, {}))
-    for key in ['max_retries', 'backoff_factor', 'request_timeout']:
+    for key in ["max_retries", "backoff_factor", "request_timeout"]:
         if key in ai_config and key not in provider_config:
             provider_config[key] = ai_config[key]
     return provider_config
@@ -747,19 +726,19 @@ def create_ai_service(config: Dict[str, Any]) -> Optional[BaseAIService]:
     Returns:
         AI 服务实例
     """
-    if not config.get('enabled', False):
+    if not config.get("enabled", False):
         return None
 
-    provider = config.get('provider', 'openai').lower()
-    provider_key = 'anthropic' if provider in ['anthropic', 'claude'] else provider
+    provider = config.get("provider", "openai").lower()
+    provider_key = "anthropic" if provider in ["anthropic", "claude"] else provider
 
     try:
-        if provider_key == 'openai':
-            return OpenAIService(_merge_provider_config(config, 'openai'))
-        elif provider_key == 'anthropic':
-            return AnthropicService(_merge_provider_config(config, 'anthropic'))
-        elif provider_key == 'ollama':
-            return OllamaService(_merge_provider_config(config, 'ollama'))
+        if provider_key == "openai":
+            return OpenAIService(_merge_provider_config(config, "openai"))
+        elif provider_key == "anthropic":
+            return AnthropicService(_merge_provider_config(config, "anthropic"))
+        elif provider_key == "ollama":
+            return OllamaService(_merge_provider_config(config, "ollama"))
         else:
             logging.warning(f"不支持的 AI 服务提供商: {provider_key}")
             return None

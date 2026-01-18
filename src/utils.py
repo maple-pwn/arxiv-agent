@@ -17,7 +17,6 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import colorlog
 import time
-import json
 
 
 def setup_logging(config: Dict[str, Any]) -> None:
@@ -27,11 +26,11 @@ def setup_logging(config: Dict[str, Any]) -> None:
     Args:
         config: 日志配置字典
     """
-    log_level = config.get('level', 'INFO')
-    log_file = config.get('file', './logs/arxiv_scraper.log')
-    console_output = config.get('console', True)
-    max_size = config.get('max_size', 10) * 1024 * 1024  # MB to bytes
-    backup_count = config.get('backup_count', 5)
+    log_level = config.get("level", "INFO")
+    log_file = config.get("file", "./logs/arxiv_scraper.log")
+    console_output = config.get("console", True)
+    max_size = config.get("max_size", 10) * 1024 * 1024  # MB to bytes
+    backup_count = config.get("backup_count", 5)
 
     # 确保日志目录存在
     log_dir = os.path.dirname(log_file)
@@ -47,14 +46,11 @@ def setup_logging(config: Dict[str, Any]) -> None:
 
     # 文件处理器（带日志轮转）
     file_handler = RotatingFileHandler(
-        log_file,
-        maxBytes=max_size,
-        backupCount=backup_count,
-        encoding='utf-8'
+        log_file, maxBytes=max_size, backupCount=backup_count, encoding="utf-8"
     )
     file_formatter = logging.Formatter(
-        '%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        datefmt='%Y-%m-%d %H:%M:%S'
+        "%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        datefmt="%Y-%m-%d %H:%M:%S",
     )
     file_handler.setFormatter(file_formatter)
     logger.addHandler(file_handler)
@@ -63,15 +59,15 @@ def setup_logging(config: Dict[str, Any]) -> None:
     if console_output:
         console_handler = colorlog.StreamHandler()
         console_formatter = colorlog.ColoredFormatter(
-            '%(log_color)s%(asctime)s - %(name)s - %(levelname)s - %(message)s%(reset)s',
-            datefmt='%Y-%m-%d %H:%M:%S',
+            "%(log_color)s%(asctime)s - %(name)s - %(levelname)s - %(message)s%(reset)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
             log_colors={
-                'DEBUG': 'cyan',
-                'INFO': 'green',
-                'WARNING': 'yellow',
-                'ERROR': 'red',
-                'CRITICAL': 'red,bg_white',
-            }
+                "DEBUG": "cyan",
+                "INFO": "green",
+                "WARNING": "yellow",
+                "ERROR": "red",
+                "CRITICAL": "red,bg_white",
+            },
         )
         console_handler.setFormatter(console_formatter)
         logger.addHandler(console_handler)
@@ -81,7 +77,7 @@ def create_retry_session(
     total_retries: int = 3,
     backoff_factor: float = 0.5,
     status_forcelist: Optional[List[int]] = None,
-    allowed_methods: Optional[List[str]] = None
+    allowed_methods: Optional[List[str]] = None,
 ) -> requests.Session:
     """
     创建带重试机制的 requests Session
@@ -97,7 +93,15 @@ def create_retry_session(
     """
     session = requests.Session()
     status_forcelist = status_forcelist or [429, 500, 502, 503, 504]
-    allowed_methods = allowed_methods or ["HEAD", "GET", "POST", "PUT", "DELETE", "OPTIONS", "TRACE"]
+    allowed_methods = allowed_methods or [
+        "HEAD",
+        "GET",
+        "POST",
+        "PUT",
+        "DELETE",
+        "OPTIONS",
+        "TRACE",
+    ]
 
     retry_kwargs = dict(
         total=total_retries,
@@ -106,7 +110,7 @@ def create_retry_session(
         status=total_retries,
         backoff_factor=backoff_factor,
         status_forcelist=status_forcelist,
-        raise_on_status=False
+        raise_on_status=False,
     )
 
     try:
@@ -120,7 +124,9 @@ def create_retry_session(
     return session
 
 
-def send_notification(config: Dict[str, Any], message: str, subject: str = None) -> bool:
+def send_notification(
+    config: Dict[str, Any], message: str, subject: str = None
+) -> bool:
     """
     发送通知
 
@@ -132,16 +138,16 @@ def send_notification(config: Dict[str, Any], message: str, subject: str = None)
     Returns:
         是否发送成功
     """
-    if not config.get('enabled', False):
+    if not config.get("enabled", False):
         return True  # 未启用通知，视为成功
 
-    method = config.get('method', 'email')
+    method = config.get("method", "email")
 
     try:
-        if method == 'email':
-            return _send_email(config.get('email', {}), message, subject)
-        elif method == 'webhook':
-            return _send_webhook(config.get('webhook', {}), message, subject)
+        if method == "email":
+            return _send_email(config.get("email", {}), message, subject)
+        elif method == "webhook":
+            return _send_webhook(config.get("webhook", {}), message, subject)
         else:
             logging.warning(f"不支持的通知方式: {method}")
             return False
@@ -163,11 +169,11 @@ def _send_email(config: Dict[str, Any], message: str, subject: str = None) -> bo
     Returns:
         是否发送成功
     """
-    smtp_server = config.get('smtp_server')
-    smtp_port = config.get('smtp_port', 587)
-    sender = config.get('sender')
-    password = config.get('password')
-    recipients = config.get('recipients', [])
+    smtp_server = config.get("smtp_server")
+    smtp_port = config.get("smtp_port", 587)
+    sender = config.get("sender")
+    password = config.get("password")
+    recipients = config.get("recipients", [])
 
     if not all([smtp_server, sender, password, recipients]):
         logging.error("邮件配置不完整")
@@ -176,12 +182,12 @@ def _send_email(config: Dict[str, Any], message: str, subject: str = None) -> bo
     try:
         # 创建邮件
         msg = MIMEMultipart()
-        msg['From'] = sender
-        msg['To'] = ', '.join(recipients)
-        msg['Subject'] = subject or 'ArXiv 论文抓取通知'
+        msg["From"] = sender
+        msg["To"] = ", ".join(recipients)
+        msg["Subject"] = subject or "ArXiv 论文抓取通知"
 
         # 添加邮件正文
-        msg.attach(MIMEText(message, 'plain', 'utf-8'))
+        msg.attach(MIMEText(message, "plain", "utf-8"))
 
         # 连接 SMTP 服务器并发送（设置30秒超时）
         with smtplib.SMTP(smtp_server, smtp_port, timeout=30) as server:
@@ -197,7 +203,9 @@ def _send_email(config: Dict[str, Any], message: str, subject: str = None) -> bo
         return False
     except TimeoutError as e:
         logging.error(f"连接超时: {str(e)}")
-        logging.error("请检查: 1) SMTP服务器地址和端口是否正确 2) 网络连接是否正常 3) 防火墙设置")
+        logging.error(
+            "请检查: 1) SMTP服务器地址和端口是否正确 2) 网络连接是否正常 3) 防火墙设置"
+        )
         return False
     except Exception as e:
         logging.error(f"发送邮件失败: {str(e)}")
@@ -216,22 +224,19 @@ def _send_webhook(config: Dict[str, Any], message: str, subject: str = None) -> 
     Returns:
         是否发送成功
     """
-    url = config.get('url')
-    method = config.get('method', 'POST').upper()
+    url = config.get("url")
+    method = config.get("method", "POST").upper()
 
     if not url:
         logging.error("Webhook URL 未配置")
         return False
 
     try:
-        payload = {
-            'subject': subject or 'ArXiv 论文抓取通知',
-            'message': message
-        }
+        payload = {"subject": subject or "ArXiv 论文抓取通知", "message": message}
 
-        if method == 'POST':
+        if method == "POST":
             response = requests.post(url, json=payload, timeout=10)
-        elif method == 'GET':
+        elif method == "GET":
             response = requests.get(url, params=payload, timeout=10)
         else:
             logging.error(f"不支持的 HTTP 方法: {method}")
@@ -262,11 +267,11 @@ def format_paper_summary(papers: list) -> str:
     lines = [f"成功抓取 {len(papers)} 篇论文：\n"]
 
     for i, paper in enumerate(papers[:10], 1):  # 只显示前10篇
-        title = paper.get('title', 'N/A')
-        authors = paper.get('authors', [])
-        author_str = ', '.join(authors[:3])  # 只显示前3位作者
+        title = paper.get("title", "N/A")
+        authors = paper.get("authors", [])
+        author_str = ", ".join(authors[:3])  # 只显示前3位作者
         if len(authors) > 3:
-            author_str += ' et al.'
+            author_str += " et al."
 
         lines.append(f"{i}. {title}")
         lines.append(f"   作者: {author_str}")
@@ -275,7 +280,7 @@ def format_paper_summary(papers: list) -> str:
     if len(papers) > 10:
         lines.append(f"... 以及其他 {len(papers) - 10} 篇论文")
 
-    return '\n'.join(lines)
+    return "\n".join(lines)
 
 
 def validate_config_file(config_path: str) -> bool:
@@ -294,7 +299,8 @@ def validate_config_file(config_path: str) -> bool:
 
     try:
         import yaml
-        with open(config_path, 'r', encoding='utf-8') as f:
+
+        with open(config_path, "r", encoding="utf-8") as f:
             config = yaml.safe_load(f)
 
         if config is None:
@@ -315,27 +321,27 @@ def ensure_directories(config: Dict[str, Any]) -> None:
     Args:
         config: 配置字典
     """
-    storage_config = config.get('storage', {})
-    logging_config = config.get('logging', {})
+    storage_config = config.get("storage", {})
+    logging_config = config.get("logging", {})
 
     # 数据目录
-    data_dir = storage_config.get('data_dir', './data/papers')
+    data_dir = storage_config.get("data_dir", "./data/papers")
     os.makedirs(data_dir, exist_ok=True)
 
     # 缓存目录
-    cache_file = storage_config.get('cache_file')
-    if storage_config.get('cache_enabled', True) and cache_file:
+    cache_file = storage_config.get("cache_file")
+    if storage_config.get("cache_enabled", True) and cache_file:
         cache_dir = os.path.dirname(cache_file)
         if cache_dir:
             os.makedirs(cache_dir, exist_ok=True)
 
     # PDF 目录
-    if storage_config.get('download_pdf', False):
-        pdf_dir = storage_config.get('pdf_dir', './data/pdfs')
+    if storage_config.get("download_pdf", False):
+        pdf_dir = storage_config.get("pdf_dir", "./data/pdfs")
         os.makedirs(pdf_dir, exist_ok=True)
 
     # 日志目录
-    log_file = logging_config.get('file', './logs/arxiv_scraper.log')
+    log_file = logging_config.get("file", "./logs/arxiv_scraper.log")
     log_dir = os.path.dirname(log_file)
     if log_dir:
         os.makedirs(log_dir, exist_ok=True)
@@ -345,7 +351,7 @@ def send_email_with_attachments(
     config: Dict[str, Any],
     message: str,
     subject: str,
-    attachments: Optional[List[Dict[str, str]]] = None
+    attachments: Optional[List[Dict[str, str]]] = None,
 ) -> bool:
     """
     发送带附件的邮件
@@ -360,11 +366,11 @@ def send_email_with_attachments(
     Returns:
         是否发送成功
     """
-    smtp_server = config.get('smtp_server')
-    smtp_port = config.get('smtp_port', 587)
-    sender = config.get('sender')
-    password = config.get('password')
-    recipients = config.get('recipients', [])
+    smtp_server = config.get("smtp_server")
+    smtp_port = config.get("smtp_port", 587)
+    sender = config.get("sender")
+    password = config.get("password")
+    recipients = config.get("recipients", [])
 
     if not all([smtp_server, sender, password, recipients]):
         logging.error("邮件配置不完整")
@@ -373,34 +379,35 @@ def send_email_with_attachments(
     try:
         # 创建邮件
         msg = MIMEMultipart()
-        msg['From'] = sender
-        msg['To'] = ', '.join(recipients)
-        msg['Subject'] = subject
+        msg["From"] = sender
+        msg["To"] = ", ".join(recipients)
+        msg["Subject"] = subject
 
         # 添加邮件正文
-        msg.attach(MIMEText(message, 'plain', 'utf-8'))
+        msg.attach(MIMEText(message, "plain", "utf-8"))
 
         # 添加附件
         if attachments:
             for attachment_info in attachments:
-                file_path = attachment_info.get('file_path')
+                file_path = attachment_info.get("file_path")
                 if not file_path or not os.path.exists(file_path):
                     logging.warning(f"附件文件不存在: {file_path}")
                     continue
 
                 # 读取文件
-                with open(file_path, 'rb') as f:
-                    part = MIMEBase('application', 'octet-stream')
+                with open(file_path, "rb") as f:
+                    part = MIMEBase("application", "octet-stream")
                     part.set_payload(f.read())
 
                 # 编码附件
                 encoders.encode_base64(part)
 
                 # 设置附件文件名
-                filename = attachment_info.get('filename') or os.path.basename(file_path)
+                filename = attachment_info.get("filename") or os.path.basename(
+                    file_path
+                )
                 part.add_header(
-                    'Content-Disposition',
-                    f'attachment; filename= {filename}'
+                    "Content-Disposition", f"attachment; filename= {filename}"
                 )
 
                 msg.attach(part)
@@ -421,7 +428,9 @@ def send_email_with_attachments(
         return False
     except TimeoutError as e:
         logging.error(f"连接超时: {str(e)}")
-        logging.error("请检查: 1) SMTP服务器地址和端口是否正确 2) 网络连接是否正常 3) 防火墙设置")
+        logging.error(
+            "请检查: 1) SMTP服务器地址和端口是否正确 2) 网络连接是否正常 3) 防火墙设置"
+        )
         return False
     except Exception as e:
         logging.error(f"发送带附件邮件失败: {str(e)}")
@@ -434,7 +443,7 @@ def send_email_with_retry(
     subject: str,
     attachments: Optional[List[Dict[str, str]]] = None,
     max_retries: int = 3,
-    retry_delay: int = 5
+    retry_delay: int = 5,
 ) -> bool:
     """
     发送带附件的邮件（带重试机制）
@@ -471,7 +480,7 @@ def send_report_via_webhook(
     webhook_config: Dict[str, Any],
     report_content: str,
     paper_count: int,
-    timestamp: str
+    timestamp: str,
 ) -> bool:
     """
     通过Webhook发送报告内容
@@ -485,8 +494,8 @@ def send_report_via_webhook(
     Returns:
         是否发送成功
     """
-    url = webhook_config.get('url')
-    method = webhook_config.get('method', 'POST').upper()
+    url = webhook_config.get("url")
+    method = webhook_config.get("method", "POST").upper()
 
     if not url:
         logging.error("Webhook URL 未配置")
@@ -494,21 +503,21 @@ def send_report_via_webhook(
 
     try:
         payload = {
-            'type': 'arxiv_report',
-            'timestamp': timestamp,
-            'paper_count': paper_count,
-            'content': report_content,
-            'format': 'markdown'
+            "type": "arxiv_report",
+            "timestamp": timestamp,
+            "paper_count": paper_count,
+            "content": report_content,
+            "format": "markdown",
         }
 
         headers = {
-            'Content-Type': 'application/json',
-            'User-Agent': 'ArXiv-Paper-Agent/1.0'
+            "Content-Type": "application/json",
+            "User-Agent": "ArXiv-Paper-Agent/1.0",
         }
 
-        if method == 'POST':
+        if method == "POST":
             response = requests.post(url, json=payload, headers=headers, timeout=30)
-        elif method == 'PUT':
+        elif method == "PUT":
             response = requests.put(url, json=payload, headers=headers, timeout=30)
         else:
             logging.error(f"不支持的 HTTP 方法: {method}")

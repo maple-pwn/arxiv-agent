@@ -8,7 +8,7 @@ import os
 import re
 import yaml
 import logging
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 
 
 # 环境变量映射表：环境变量名 -> 配置路径
