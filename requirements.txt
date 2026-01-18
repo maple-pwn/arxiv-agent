@@ -22,3 +22,7 @@ colorlog>=6.7.0
 
 # 可选依赖（用于 Markdown 转 HTML，非必需）
 # markdown>=3.4.0
+
+# 开发依赖
+pytest>=7.0.0
+pytest-cov>=4.0.0
