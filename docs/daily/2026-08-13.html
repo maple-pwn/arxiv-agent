@@ -106,7 +106,7 @@
                     <div class="stat-label">Categories</div>
                 </div>
                 <div class="stat-item">
-                    <div class="stat-number">5</div>
+                    <div class="stat-number">10</div>
                     <div class="stat-label">Translated</div>
                 </div>
             </div>
@@ -2553,7 +2553,7 @@
     <div class="paper">
         <div class="paper-number">cs.AI / 4 / 2608.11381</div>
         <div class="paper-title">From Numbers to Judgment: Specialist LLM Agents and Reinforcement Learning for European Listed Real Estate</div>
-        
+        <div class="paper-title-zh">从数字到判断：面向欧洲上市房地产的专家LLM代理与强化学习</div>
         <div class="paper-meta">
             <div class="paper-authors">Pardis Taghavi, Santosh Bhavani</div>
             <div class="paper-categories">cs.AI · cs.LG</div>
@@ -2562,6 +2562,9 @@
         <div class="abstract-section">
             <div class="abstract-label">Abstract</div>
             <div class="abstract-en">We study whether the localized numerical operations and integrative judgments of financial analysis benefit from the same form of LLM specialization. Larix maps a 16-lens European listed-real-estate analysis framework to eight lens-aligned specialists; we compare a frontier LLM under monolithic versus specialist-decomposed prompting while holding the model, source evidence, task instructions, output schema, and scoring fixed. Across 19 firms spanning seven regulatory wrappers, decomposition improves the numerical-task aggregate by 15.8 percentage points but does not reliably improve, and can reduce, performance on judgment tasks, a pattern stable across four frozen-template dispatches; a single-agent control given the complete framework does not reproduce the numerical gain. Post-training Qwen3.5-9B with GRPO using task-aligned structured rewards then raises the development-split score by 12.0 points and the judgment aggregate by 14.2 points, with gains on all four sub-ceiling tasks; the gains transfer to unseen firms (+15.2 points overall; +40.4 on covenant stress) and to unseen regulatory wrappers (+4.3), with positive transfer on all three anti-memorization splits. Prompt-level decomposition thus improves modular numerical execution, whereas targeted parameter adaptation improves integrative financial judgment.</div>
+            
+            <div class="abstract-label">Chinese Translation</div>
+            <div class="abstract-zh">我们研究金融分析中的局部数值运算与整合性判断是否受益于相同形式的LLM专门化。Larix将16视角的欧洲上市房地产分析框架映射到八个视角对齐的专家；我们在保持模型、源证据、任务指令、输出模式和评分固定的情况下，比较前沿LLM在整体式提示与专家分解式提示下的表现。在跨越七个监管包装的19家公司中，分解将数值任务聚合总分提高了15.8个百分点，但并未可靠地提高判断任务的性能，反而可能降低，这一模式在四次冻结模板调度中保持稳定；给予完整框架的单代理控制未能复现数值上的提升。使用任务对齐的结构化奖励对Qwen3.5-9B进行GRPO后训练，随后将开发集分数提高了12.0分，判断聚合分数提高了14.2分，在所有四个子上限任务上均有提升；这些提升迁移到未见过的公司（总体+15.2分；契约压力+40.4分）和未见过的监管包装（+4.3分），在所有三个反记忆化划分上均呈现正迁移。因此，提示级分解改善了模块化数值执行，而针对性的参数适配则改善了整合性金融判断。</div>
             
         </div>
         <div class="paper-links">
@@ -2577,7 +2580,7 @@
     <div class="paper">
         <div class="paper-number">cs.AI / 5 / 2608.11403</div>
         <div class="paper-title">When Self-Consistency Backfires: Majority Vote Hurts the Majority of Hard Science Problems for Small LLMs</div>
-        
+        <div class="paper-title-zh">当自一致性适得其反：多数投票损害了小型LLM在大多数硬科学问题上的表现</div>
         <div class="paper-meta">
             <div class="paper-authors">Utkarsh Bahuguna</div>
             <div class="paper-categories">cs.AI · cs.CL · cs.LG</div>
@@ -2586,6 +2589,9 @@
         <div class="abstract-section">
             <div class="abstract-label">Abstract</div>
             <div class="abstract-en">Self-consistency (SC) via majority vote is a widely used way to spend inference-time compute: sample N chains of thought, return the plurality answer. On the full GPQA Diamond benchmark (198 graduate-level science questions), majority voting reduces per-problem accuracy on a majority of problems for two instruction-tuned models from different families: 56.6% of problems for Qwen2.5-7B and 65.7% for Llama-3-8B, with Qwen the primary demonstration and Llama corroborating the direction from a near-chance baseline. The effect was pre-registered on a 151-problem confirmatory split after being observed on 47 exploratory problems, and all four confirmatory hypotheses passed. A grid oracle that routes each problem to the best N across {1, 2, 4, 8, 16, 32, 64} marks a theoretical upper bound 14 accuracy points above N = 1 for Qwen and 17 for Llama, an oracle bound requiring ground truth rather than a deployable method. No verifier-free gate reaches it: neither a plurality-agreement gate nor a token-entropy gate moves accuracy more than 0.002 from fixed-budget voting at N = 64. The mechanism is direct: confidence does not track correctness on these problems. In the highest-agreement bin the plurality answer is correct about half the time for Qwen, and for Llama that bin is less accurate than its lowest-agreement bin. We pre-register and confirm these findings on small instruction-tuned models; we do not test reasoning-native models, which we flag as the central open question.</div>
+            
+            <div class="abstract-label">Chinese Translation</div>
+            <div class="abstract-zh">通过多数投票的自一致性（SC）是一种广泛使用的消耗推理时间算力的方式：采样N条思维链，返回得票最多的答案。在完整的GPQA Diamond基准（198个研究生级科学问题）上，对于来自不同系列的两个指令调优模型，多数投票在大多数问题上降低了逐问题准确率：Qwen2.5-7B的56.6%问题和Llama-3-8B的65.7%问题，其中Qwen是主要示范，Llama从接近随机基线的方向佐证了这一趋势。该效应在47个探索性问题上被观察到后，在151个问题的验证性分割上进行了预注册，所有四个验证性假设均通过。一个网格神谕将每个问题路由到{1, 2, 4, 8, 16, 32, 64}中的最佳N，标记了理论上限：Qwen比N=1高14个准确率点，Llama高17个准确率点，这种神谕上界需要真实标签而非可部署的方法。没有任何无验证器门控能达到该上界：在固定预算为N=64时，多数一致性门控和词元熵门控对准确率的改变都不超过0.002。机制很直接：在这些问题上，置信度并不反映正确性。在最高一致性分箱中，Qwen的多数答案大约有一半时间是正确的，而对于Llama，该分箱的准确率低于其最低一致性分箱。我们在小型指令调优模型上预注册并确认了这些发现；我们未测试推理原生模型，并将其标记为核心开放问题。</div>
             
         </div>
         <div class="paper-links">
@@ -2601,7 +2607,7 @@
     <div class="paper">
         <div class="paper-number">cs.AI / 6 / 2608.11420</div>
         <div class="paper-title">Social Chain of Thought: A Multi-Agent Architecture Grounded in Medical Differential Diagnosis Methodology</div>
-        
+        <div class="paper-title-zh">社会思维链：基于医学鉴别诊断方法论的多智能体架构</div>
         <div class="paper-meta">
             <div class="paper-authors">Del Coburn, Scott Sanner, Dan Silver</div>
             <div class="paper-categories">cs.AI · cs.CL</div>
@@ -2610,6 +2616,9 @@
         <div class="abstract-section">
             <div class="abstract-label">Abstract</div>
             <div class="abstract-en">Medical diagnostic reasoning is a high-impact use case for LLMs that carries significant implications for the health and wellbeing of users. When OpenAI (2026) reports that more than 5% of ChatGPT messages globally are healthcare-related, the transparency of these systems becomes a serious design concern. This is especially true for complex cases, where differential diagnosis often requires integrating multiple forms of specialist reasoning. Existing work has proposed multi-agent approaches to medical diagnosis, but it remains unclear when such systems are needed, why they help, and where they outperform monolithic inference. We introduce Social Chain of Thought (SCoT),a multi-round pipeline for medical differential diagnosis that structures multi-agent interaction as a deliberative framework for collabora. tive LLM reasoning. Evaluating SCoT against single-agent baselines, one-agent pipeline ablations, and best-of-n scaling, we show that its recall advantage is not reproduced by monolithic inference alone. SCoT is most successful in the hardest diagnostic cases, where multiple rounds of specialist conversation help recover ground-truth diagnoses and converge on a higher-recall differential.</div>
+            
+            <div class="abstract-label">Chinese Translation</div>
+            <div class="abstract-zh">医学诊断推理是大语言模型（LLMs）的一个高影响力应用场景，对用户的健康和福祉具有重大影响。当OpenAI（2026）报告全球超过5%的ChatGPT消息与医疗保健相关时，这些系统的透明度便成为一个严肃的设计问题。这一点在复杂病例中尤为突出，因为鉴别诊断通常需要整合多种形式的专家推理。已有工作提出了用于医学诊断的多智能体方法，但仍不清楚何时需要此类系统、它们为何有用，以及它们在哪些方面优于单体推理。我们引入了社会思维链（SCoT），这是一种用于医学鉴别诊断的多轮流水线，它将多智能体交互构建为一种用于协作式大语言模型推理的审议框架。通过将SCoT与单智能体基线、单智能体流水线消融以及最佳n采样扩展进行比较评估，我们表明其召回率优势无法仅通过单体推理重现。SCoT在最具挑战性的诊断病例中最为成功，在这些病例中，多轮专家对话有助于恢复真实诊断，并收敛到召回率更高的鉴别诊断结果。</div>
             
         </div>
         <div class="paper-links">
@@ -2625,7 +2634,7 @@
     <div class="paper">
         <div class="paper-number">cs.AI / 7 / 2608.11434</div>
         <div class="paper-title">Benchmarking LLM Judges for Mobile Agent Evaluation</div>
-        
+        <div class="paper-title-zh">面向移动代理评估的LLM裁判基准测试</div>
         <div class="paper-meta">
             <div class="paper-authors">Ziqiang Wan, Li Gu, Zhixiang Chi, Zhi Liu, Seyed Mehdi Ayyoubzadeh, Yuanhao Yu, Yang Wang</div>
             <div class="paper-categories">cs.AI · cs.CL · cs.CV</div>
@@ -2634,6 +2643,9 @@
         <div class="abstract-section">
             <div class="abstract-label">Abstract</div>
             <div class="abstract-en">Mobile agent benchmarks increasingly rely on LLM-based judges to evaluate task completion, yet the reliability of these judges on mobile agent trajectories remains largely unexamined. We introduce MobileJudgeBench, a benchmark for systematically evaluating LLM-as-judge methods on mobile agent trajectories. Our benchmark comprises 931 human-annotated trajectories spanning 6 mobile agent benchmarks, 4 agent models, and 68 apps. We evaluate 6 judge methods (five adapted from SPA-Bench, A3 with two modes, AndroidArena, and AgentRewardBench, plus a simple baseline we design) across multiple LLM backends. Our experiments reveal three key findings. First, a simple baseline judge with sampled screenshots is competitive with, and often exceeds, purpose-built methods, indicating that more elaborate judge pipelines do not consistently improve judge quality; among competitive methods, the LLM backbone is the primary driver. Second, benchmark quality metrics reliably predict real-world judge utility: they correlate with both agent ranking fidelity for evaluation and downstream performance when judges serve as reward signals for on-policy reinforcement learning. Third, failure analysis across two LLM backends uncovers qualitatively opposite failure profiles, one conservative and the other permissive, linked to the backbone&#39;s precision-recall characteristics.</div>
+            
+            <div class="abstract-label">Chinese Translation</div>
+            <div class="abstract-zh">移动代理基准测试日益依赖基于LLM的裁判来评估任务完成情况，然而这些裁判在移动代理轨迹上的可靠性在很大程度上仍未得到检验。我们引入了MobileJudgeBench，这是一个在移动代理轨迹上系统评估LLM作为裁判方法的基准。我们的基准包含931条人工标注的轨迹，覆盖6个移动代理基准、4个代理模型和68个应用程序。我们评估了6种裁判方法（其中五种改编自SPA-Bench、A3的两种模式、AndroidArena和AgentRewardBench，加上我们设计的一个简单基线），这些方法使用多个LLM后端。我们的实验揭示了三个关键发现。第一，一个使用采样截图的简单基线裁判与专门构建的方法相比具有竞争力，并且常常超过它们，这表明更精细的裁判流水线并不能持续提高裁判质量；在有竞争力的方法中，LLM主干是主要驱动力。第二，基准质量指标能够可靠地预测真实世界裁判的实用性：它们与评估的代理排名保真度以及当裁判作为同策略强化学习奖励信号时的下游性能都相关。第三，对两个LLM后端的失败分析揭示了性质上相反的失败概况，一个保守，一个宽松，这与后端的精确率-召回率特性有关。</div>
             
         </div>
         <div class="paper-links">
@@ -2649,7 +2661,7 @@
     <div class="paper">
         <div class="paper-number">cs.AI / 8 / 2608.11483</div>
         <div class="paper-title">A Modular Agentic Framework for Synthetically Constrained Multi-Objective Hit-to-Lead Optimization</div>
-        
+        <div class="paper-title-zh">面向合成约束的多目标命中到先导优化的模块化智能体框架</div>
         <div class="paper-meta">
             <div class="paper-authors">Kelvin P. Idanwekhai, Enes Kelestemur, Benjamin Strickland, Matthew Hart, Steini Davidsson, Angelos Angelopoulos, Ron Alterovitz, Marcello DeLuca, Alexander Tropsha</div>
             <div class="paper-categories">cs.AI · cs.LG · q-bio.QM</div>
@@ -2658,6 +2670,9 @@
         <div class="abstract-section">
             <div class="abstract-label">Abstract</div>
             <div class="abstract-en">Hit-to-lead optimization requires iterative design of hit analogs across competing potency, selectivity, physicochemical, pharmacokinetic, safety, and synthetic constraints. We present SABLE (Synthetically-accessible Agentic Bayesian Ligand Exploration), an open-source framework that employs natural-language orchestration to guide chemical structure optimization. SABLE uses an LLM to interpret user-defined goals and route tasks, while specialized tools perform reaction-templated analog enumeration, physicochemical and ADMET property prediction, structure-based affinity scoring, and Bayesian optimization. The resulting workflow is a computational twin of the analytical and prioritization stages of the design-make-test-analyze cycle, providing provenance of each numerical output. Across single, and multi-objective optimization studies, SABLE enriches candidate sets for user-defined computational objectives while evaluating only a subset of the enumerated search space. Its modular architecture allows tools and characterization backends to be replaced by editing a simple config file, without modifying operational logic. SABLE provides an extensible decision-support framework for prioritizing synthetically constrained analogs in early-stage drug discovery.</div>
+            
+            <div class="abstract-label">Chinese Translation</div>
+            <div class="abstract-zh">命中到先导优化需要在相互竞争的药效、选择性、理化性质、药代动力学、安全性和合成约束条件下，对命中类似物进行迭代设计。我们提出了SABLE（可合成性智能体贝叶斯配体探索），一种利用自然语言编排来指导化学结构优化的开源框架。SABLE使用大语言模型（LLM）来解析用户定义的目标并路由任务，而专用工具则执行反应模板化的类似物枚举、理化性质和ADMET性质预测、基于结构的亲和力评分以及贝叶斯优化。由此产生的工作流是设计-制造-测试-分析循环中分析和优先级确定阶段的计算孪生，提供每个数值输出的来源。在单目标和多目标优化研究中，SABLE在仅评估枚举搜索空间的一个子集的同时，为用户定义的计算目标丰富了候选集。其模块化架构允许通过编辑一个简单的配置文件来替换工具和表征后端，而无需修改操作逻辑。SABLE为早期药物发现中优先排序受合成约束的类似物提供了一个可扩展的决策支持框架。</div>
             
         </div>
         <div class="paper-links">
