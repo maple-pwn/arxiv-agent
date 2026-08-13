@@ -48,6 +48,7 @@ def translate_paper(client: httpx.Client, config: dict, key: str, paper: dict) -
     llm = config["llm"]
     endpoint = _chat_endpoint(llm["base_url"])
     user = (
+        "请将下面的英文标题和摘要完整翻译成简体中文（逐句翻译、不要总结、不要省略任何内容）：\n\n"
         "标题：\n" + paper["title"] + "\n\n摘要：\n" + paper["summary"]
     )
     payload = {
