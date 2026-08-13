@@ -5,6 +5,11 @@ on:
     # UTC 02:30，arXiv 每日约 01:00 UTC 前完成当日发布
     - cron: '30 2 * * *'
   workflow_dispatch:
+    inputs:
+      limit:
+        description: '翻译论文数量上限（测试可填 5，留空=全部翻译）'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -25,7 +30,12 @@ jobs:
       - name: Run daily pipeline (fetch + translate + filter + build)
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        run: python -m arxiv_daily.cli run
+        run: |
+          if [ -n "${{ github.event.inputs.limit }}" ]; then
+            python -m arxiv_daily.cli run --limit "${{ github.event.inputs.limit }}"
+          else
+            python -m arxiv_daily.cli run
+          fi
 
       - name: Commit and push generated site
         uses: stefanzweifel/git-auto-commit-action@v5

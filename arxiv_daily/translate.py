@@ -17,6 +17,10 @@ SYSTEM_PROMPT = (
 )
 
 
+class AuthError(Exception):
+    """API key 无效（401/403）时抛出，用于立即终止而非逐篇重试。"""
+
+
 def _chat_endpoint(base_url: str) -> str:
     base_url = base_url.rstrip("/")
     if base_url.endswith("/chat/completions"):
@@ -57,6 +61,8 @@ def translate_paper(client: httpx.Client, config: dict, key: str, paper: dict) -
     headers = {"Authorization": f"Bearer {key}", "Content-Type": "application/json"}
 
     resp = client.post(endpoint, json=payload, headers=headers, timeout=llm.get("timeout", 120))
+    if resp.status_code in (401, 403):
+        raise AuthError(f"API 认证失败（HTTP {resp.status_code}），请检查 API key 是否有效")
     resp.raise_for_status()
     data = resp.json()
     content = data["choices"][0]["message"]["content"]
@@ -115,6 +121,10 @@ def translate_date(config: dict, date_str: str, limit: int | None = None) -> int
                     done += 1
                     print(f"[translate] {date_str}: {i}/{len(pending)} {paper['arxiv_id']} 完成")
                     break
+                except AuthError as err:
+                    print(f"[translate] {err}，终止翻译")
+                    _save_papers(path, papers)
+                    return done
                 except (httpx.HTTPError, ValueError, KeyError, IndexError, json.JSONDecodeError) as err:
                     last_err = err
                     wait = 2 ** attempt
