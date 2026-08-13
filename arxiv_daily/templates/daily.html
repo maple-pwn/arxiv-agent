@@ -6,6 +6,19 @@
     <title>{{ site.title }} — {{ date }}</title>
     <link rel="stylesheet" href="{{ base_url }}/static/style.css">
     {% if analytics %}{{ analytics | safe }}{% endif %}
+    <script>
+        window.MathJax = {
+            tex: {
+                inlineMath: [['$', '$']],
+                displayMath: [['$$', '$$']],
+                processEscapes: true
+            },
+            options: {
+                skipHtmlTags: ['script', 'noscript', 'style', 'textarea', 'pre', 'code']
+            }
+        };
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js" async></script>
 </head>
 <body>
     {% macro paper_card(paper, cat_code, idx, base_url) %}
