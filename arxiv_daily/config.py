@@ -26,6 +26,9 @@ DEFAULTS: dict = {
         "max_retries": 3,
         "concurrency": 8,
     },
+    "translate": {
+        "only_favorites": False,
+    },
     "site": {
         "title": "arXiv Papers",
         "subtitle": "Daily Research Digest",

@@ -28,6 +28,9 @@ llm:                                # 翻译用的 LLM（OpenAI 兼容接口）
   max_retries: 3                    # 失败重试次数
   concurrency: 8                    # 并发翻译线程数
 
+translate:
+  only_favorites: false             # 只翻译精选论文（关键词命中的），降低翻译成本
+
 site:
   title: arXiv Papers
   subtitle: Daily Research Digest

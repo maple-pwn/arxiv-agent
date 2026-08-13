@@ -54,8 +54,8 @@ def main(argv: list[str] | None = None) -> None:
         build.run(config)
     elif args.command == "run":
         fetch.run(config, args.date)
-        translate.run(config, args.date, args.limit)
-        filter_mod.run(config, args.date)
+        filter_mod.run(config, args.date)          # 先标记精选
+        translate.run(config, args.date, args.limit)  # 再翻译（可能只翻精选）
         build.run(config)
 
 

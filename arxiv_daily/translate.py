@@ -107,12 +107,17 @@ def translate_date(config: dict, date_str: str, limit: int | None = None) -> int
         return 0
 
     papers, path = _load_papers(date_str)
-    pending = [p for p in papers if not p.get("title_zh")]
+    only_favorites = bool(config.get("translate", {}).get("only_favorites", False))
+    if only_favorites:
+        pending = [p for p in papers if p.get("favorites") and not p.get("title_zh")]
+        print(f"[translate] {date_str}: 仅翻译精选论文")
+    else:
+        pending = [p for p in papers if not p.get("title_zh")]
     if limit is not None:
         pending = pending[:limit]
 
     if not pending:
-        print(f"[translate] {date_str}: 无待翻译论文（已全部翻译）")
+        print(f"[translate] {date_str}: 无待翻译论文")
         return 0
 
     llm = config["llm"]
