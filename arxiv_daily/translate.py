@@ -13,7 +13,10 @@ from .config import DATA_DIR, get_api_key, load_config
 SYSTEM_PROMPT = (
     "你是专业的学术论文翻译，精通中英文学术表达。请将用户给出的英文标题与摘要"
     "完整地逐句翻译成简体中文，忠实于原文：不要总结、不要概括、不要省略任何句子或技术细节，"
-    "保持学术术语准确，译文长度应与原文相当。严格只输出一个 JSON 对象，格式为 "
+    "保持学术术语准确，译文长度应与原文相当。"
+    "原文中的 LaTeX 数学公式（形如 $...$ 或 $$...$$）必须原样保留，"
+    "不要翻译、不要改写、不要转成普通文字或 Unicode 字符，只翻译公式以外的正文。"
+    "严格只输出一个 JSON 对象，格式为 "
     '{"title_zh": "标题中文", "abstract_zh": "摘要中文"}，不要输出任何其他文字。'
 )
 
@@ -48,7 +51,8 @@ def translate_paper(client: httpx.Client, config: dict, key: str, paper: dict) -
     llm = config["llm"]
     endpoint = _chat_endpoint(llm["base_url"])
     user = (
-        "请将下面的英文标题和摘要完整翻译成简体中文（逐句翻译、不要总结、不要省略任何内容）：\n\n"
+        "请将下面的英文标题和摘要完整翻译成简体中文（逐句翻译、不要总结、不要省略任何内容，"
+        "并保留其中的 LaTeX 数学公式 $...$ 原样不动）：\n\n"
         "标题：\n" + paper["title"] + "\n\n摘要：\n" + paper["summary"]
     )
     payload = {
