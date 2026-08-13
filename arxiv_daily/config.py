@@ -49,6 +49,12 @@ def load_config(path: str = "config.yaml") -> dict:
     if os.path.exists(path):
         with open(path, "r", encoding="utf-8") as fh:
             user = yaml.safe_load(fh) or {}
+        # categories / keywords 是用户自定义的完整集合，应整体替换默认值，
+        # 而不是与默认值做字典合并（否则默认分类会一直泄漏进来）。
+        for key in ("categories", "keywords"):
+            if key in user:
+                config[key] = copy.deepcopy(user[key])
+                user.pop(key)
         _deep_merge(config, user)
     return config
 

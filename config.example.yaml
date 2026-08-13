@@ -3,14 +3,15 @@
 # 不要写进 yaml。
 
 categories:                        # 抓取的 arXiv 分类及中文名（侧边栏/分组标题）
-  cs.RO: 机器人学
-  cs.CV: 计算机视觉
   cs.AI: 人工智能
-  cs.CL: 计算语言学
   cs.LG: 机器学习
-  cs.SE: 软件工程
   cs.NE: 神经与进化计算
-  cs.DC: 分布式与并行计算
+  cs.CL: 计算语言学
+  cs.MA: 多智能体系统
+  cs.SE: 软件工程
+  cs.OS: 操作系统
+  cs.AR: 硬件架构
+  cs.CR: 密码学与安全
 
 keywords:                          # 关键词精选：命中标题或摘要的论文会被置顶高亮
   - keyword: "diffusion"
