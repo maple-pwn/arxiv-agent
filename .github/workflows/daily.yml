@@ -30,6 +30,7 @@ jobs:
       - name: Run daily pipeline (fetch + translate + filter + build)
         env:
           DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          PYTHONUNBUFFERED: "1"
         run: |
           if [ -n "${{ github.event.inputs.limit }}" ]; then
             python -m arxiv_daily.cli run --limit "${{ github.event.inputs.limit }}"
