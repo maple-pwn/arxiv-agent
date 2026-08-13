@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ site.title }} — {{ date }}</title>
+    <link rel="stylesheet" href="{{ base_url }}/static/style.css">
+    {% if analytics %}{{ analytics | safe }}{% endif %}
+</head>
+<body>
+    {% macro paper_card(paper, cat_code, idx, base_url) %}
+    <div class="paper">
+        <div class="paper-number">{{ cat_code }} / {{ idx }} / {{ paper.arxiv_id }}</div>
+        <div class="paper-title">{{ paper.title }}</div>
+        {% if paper.title_zh %}<div class="paper-title-zh">{{ paper.title_zh }}</div>{% endif %}
+        <div class="paper-meta">
+            <div class="paper-authors">{{ paper.authors | join(', ') }}</div>
+            <div class="paper-categories">{{ paper.categories | join(' · ') }}</div>
+        </div>
+        {% if paper.favorites %}
+        <div class="favorite-info">
+            <div class="favorite-keywords">
+                {% for f in paper.favorites %}<span class="favorite-keyword">{{ f.keyword }}</span>{% endfor %}
+            </div>
+            {% for f in paper.favorites %}{% if f.reason %}<div class="favorite-reason">{{ f.reason }}</div>{% endif %}{% endfor %}
+        </div>
+        {% endif %}
+        <div class="abstract-section">
+            <div class="abstract-label">Abstract</div>
+            <div class="abstract-en">{{ paper.summary }}</div>
+            {% if paper.abstract_zh %}
+            <div class="abstract-label">Chinese Translation</div>
+            <div class="abstract-zh">{{ paper.abstract_zh }}</div>
+            {% endif %}
+        </div>
+        <div class="paper-links">
+            <a class="link-btn link-arxiv" href="https://arxiv.org/abs/{{ paper.arxiv_id }}" target="_blank" rel="noopener">View on arXiv</a>
+            <a class="link-btn link-pdf" href="https://arxiv.org/pdf/{{ paper.arxiv_id }}" target="_blank" rel="noopener">Download PDF</a>
+            <a class="link-btn link-hjfy" href="https://hjfy.top/arxiv/{{ paper.arxiv_id }}" target="_blank" rel="noopener">AI Translation</a>
+            <button class="link-btn link-cart cart-toggle-btn" data-id="{{ paper.arxiv_id }}">加入收藏</button>
+        </div>
+    </div>
+    {% endmacro %}
+
+    <div class="back-nav">
+        <a class="back-link" href="{{ base_url }}/index.html">← Back to Index</a>
+    </div>
+
+    <div class="layout">
+        <aside class="sidebar">
+            <div class="sidebar-title">Categories</div>
+            <nav class="sidebar-nav">
+                {% for cat in categories %}
+                <a class="sidebar-item" href="#cat-{{ cat.code }}">
+                    <span class="progress-bar"></span>
+                    <span class="sidebar-link">{{ cat.name_zh }}</span>
+                    <span class="sidebar-count">{{ cat.count }}</span>
+                </a>
+                {% endfor %}
+            </nav>
+        </aside>
+
+        <main class="container">
+            <div class="header">
+                <div class="header-subtitle">{{ site.subtitle }}</div>
+                <h1 class="header-title">{{ site.title }}</h1>
+                <div class="header-date">{{ date }}</div>
+            </div>
+
+            <div class="summary">
+                <div class="stat-item">
+                    <div class="stat-number">{{ stats.papers }}</div>
+                    <div class="stat-label">Papers</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">{{ stats.categories }}</div>
+                    <div class="stat-label">Categories</div>
+                </div>
+                <div class="stat-item">
+                    <div class="stat-number">{{ stats.translated }}</div>
+                    <div class="stat-label">Translated</div>
+                </div>
+            </div>
+
+            <div class="cart-panel">
+                <div class="cart-panel-header">
+                    <div class="cart-title">收藏清单 <span class="cart-title-count">0</span></div>
+                    <div class="cart-actions">
+                        <button class="cart-action-btn cart-copy-btn">复制全部 Arxiv ID</button>
+                        <button class="cart-action-btn cart-clear-btn">清空</button>
+                    </div>
+                </div>
+                <div class="cart-status"></div>
+                <div class="cart-ids"></div>
+            </div>
+
+            {% if favorites %}
+            <div class="category favorite-section">
+                <div class="category-header">
+                    <div class="category-title favorite-badge">精选 · Favorites</div>
+                    <div class="category-count">{{ favorites | length }}</div>
+                </div>
+                {% for paper in favorites %}
+                {{ paper_card(paper, paper.group, loop.index, base_url) }}
+                {% endfor %}
+            </div>
+            {% endif %}
+
+            {% for cat in categories %}
+            <div class="category" id="cat-{{ cat.code }}">
+                <div class="category-header">
+                    <div class="category-title">{{ cat.name_zh }} <span class="category-en">({{ cat.code }})</span></div>
+                    <div class="category-count">{{ cat.count }}</div>
+                </div>
+                {% for paper in cat.papers %}
+                {{ paper_card(paper, cat.code, loop.index, base_url) }}
+                {% endfor %}
+            </div>
+            {% endfor %}
+
+            <div class="footer">
+                <div class="footer-brand">{{ site.title }}</div>
+                <div class="footer-text">{{ date }}</div>
+            </div>
+        </main>
+    </div>
+
+    <script src="{{ base_url }}/static/app.js"></script>
+</body>
+</html>

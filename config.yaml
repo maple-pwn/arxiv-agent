@@ -1,0 +1,33 @@
+# arXiv 每日论文阅读站 —— 配置文件
+
+categories:                        # 抓取的 arXiv 分类及中文名（侧边栏/分组标题）
+  cs.RO: 机器人学
+  cs.CV: 计算机视觉
+  cs.AI: 人工智能
+  cs.CL: 计算语言学
+  cs.LG: 机器学习
+  cs.SE: 软件工程
+  cs.NE: 神经与进化计算
+  cs.DC: 分布式与并行计算
+
+keywords:                          # 关键词精选：命中标题或摘要的论文会被置顶高亮
+  - keyword: "diffusion"
+    reason: "扩散模型相关"
+  - keyword: "large language model"
+    reason: "大语言模型相关"
+
+llm:                                # 翻译用的 LLM（OpenAI 兼容接口）
+  provider: deepseek
+  base_url: https://api.deepseek.com
+  model: deepseek-chat
+  api_key_env: DEEPSEEK_API_KEY
+  timeout: 120
+  max_retries: 3
+
+site:
+  title: arXiv Papers
+  subtitle: Daily Research Digest
+  base_url: ""
+  timezone: Asia/Shanghai
+
+analytics: ""
