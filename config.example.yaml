@@ -22,7 +22,7 @@ keywords:                          # 关键词精选：命中标题或摘要的�
 llm:                                # 翻译用的 LLM（OpenAI 兼容接口）
   provider: deepseek                # 仅作标识，不影响请求
   base_url: https://api.deepseek.com
-  model: deepseek-chat
+  model: deepseek-v4-flash
   api_key_env: DEEPSEEK_API_KEY     # API key 从该环境变量读取
   timeout: 120                      # 单次请求超时（秒）
   max_retries: 3                    # 失败重试次数
