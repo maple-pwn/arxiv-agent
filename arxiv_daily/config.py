@@ -24,6 +24,7 @@ DEFAULTS: dict = {
         "api_key_env": "DEEPSEEK_API_KEY",
         "timeout": 120,
         "max_retries": 3,
+        "concurrency": 8,
     },
     "site": {
         "title": "arXiv Papers",

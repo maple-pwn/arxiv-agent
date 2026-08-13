@@ -26,6 +26,7 @@ llm:                                # 翻译用的 LLM（OpenAI 兼容接口）
   api_key_env: DEEPSEEK_API_KEY     # API key 从该环境变量读取
   timeout: 120                      # 单次请求超时（秒）
   max_retries: 3                    # 失败重试次数
+  concurrency: 8                    # 并发翻译线程数
 
 site:
   title: arXiv Papers

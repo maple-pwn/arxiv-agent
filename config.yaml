@@ -24,6 +24,7 @@ llm:                                # 翻译用的 LLM（OpenAI 兼容接口）
   api_key_env: DEEPSEEK_API_KEY
   timeout: 120
   max_retries: 3
+  concurrency: 8                     # 并发翻译线程数
 
 site:
   title: arXiv Papers

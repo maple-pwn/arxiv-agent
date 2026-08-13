@@ -1,9 +1,11 @@
 """用 LLM（OpenAI 兼容接口）批量翻译标题与摘要，幂等、可断点续传。"""
 from __future__ import annotations
 
+import concurrent.futures
 import json
 import os
 import re
+import threading
 import time
 
 import httpx
@@ -115,34 +117,41 @@ def translate_date(config: dict, date_str: str, limit: int | None = None) -> int
 
     llm = config["llm"]
     max_retries = int(llm.get("max_retries", 3))
+    concurrency = int(llm.get("concurrency", 8))
+    stop = threading.Event()  # AuthError 时通知所有线程停止
     done = 0
-    with httpx.Client(follow_redirects=True) as client:
-        for i, paper in enumerate(pending, 1):
-            last_err: Exception | None = None
-            for attempt in range(max_retries):
-                try:
-                    title_zh, abstract_zh = translate_paper(client, config, key, paper)
-                    paper["title_zh"] = title_zh
-                    paper["abstract_zh"] = abstract_zh
-                    done += 1
-                    print(f"[translate] {date_str}: {i}/{len(pending)} {paper['arxiv_id']} 完成")
-                    break
-                except AuthError as err:
-                    print(f"[translate] {err}，终止翻译")
-                    _save_papers(path, papers)
-                    return done
-                except (httpx.HTTPError, ValueError, KeyError, IndexError, json.JSONDecodeError) as err:
-                    last_err = err
-                    wait = 2 ** attempt
-                    print(f"[translate] {paper['arxiv_id']} 第 {attempt + 1} 次失败：{err}，{wait}s 后重试")
-                    time.sleep(wait)
-            else:
-                print(f"[translate] {paper['arxiv_id']} 重试耗尽，跳过：{last_err}")
-            time.sleep(0.5)  # 温和限速
+    lock = threading.Lock()
 
-            # 每 10 篇保存一次，断点续传
-            if i % 10 == 0:
-                _save_papers(path, papers)
+    def worker(paper: dict, client: httpx.Client) -> None:
+        nonlocal done
+        if stop.is_set():
+            return
+        for attempt in range(max_retries):
+            if stop.is_set():
+                return
+            try:
+                title_zh, abstract_zh = translate_paper(client, config, key, paper)
+                paper["title_zh"] = title_zh
+                paper["abstract_zh"] = abstract_zh
+                with lock:
+                    done += 1
+                    cur = done
+                print(f"[translate] {date_str}: {cur}/{len(pending)} {paper['arxiv_id']} 完成")
+                return
+            except AuthError as err:
+                print(f"[translate] {err}，终止翻译")
+                stop.set()
+                return
+            except (httpx.HTTPError, ValueError, KeyError, IndexError, json.JSONDecodeError) as err:
+                wait = 2 ** attempt
+                print(f"[translate] {paper['arxiv_id']} 第 {attempt + 1} 次失败：{err}，{wait}s 后重试")
+                time.sleep(wait)
+        print(f"[translate] {paper['arxiv_id']} 重试耗尽，跳过")
+
+    with httpx.Client(follow_redirects=True) as client:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
+            futures = [pool.submit(worker, paper, client) for paper in pending]
+            concurrent.futures.wait(futures)
 
     _save_papers(path, papers)
     print(f"[translate] {date_str}: 本次翻译 {done} 篇")
