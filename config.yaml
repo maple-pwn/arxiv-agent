@@ -20,7 +20,7 @@ keywords:                          # 关键词精选：命中标题或摘要的�
 llm:                                # 翻译用的 LLM（OpenAI 兼容接口）
   provider: deepseek
   base_url: https://api.deepseek.com
-  model: deepseek-v4-pro
+  model: deepseek-v4-flash
   api_key_env: DEEPSEEK_API_KEY
   timeout: 120
   max_retries: 3
@@ -33,6 +33,6 @@ site:
   title: arXiv Papers
   subtitle: Daily Research Digest
   base_url: ""
-  timezone: Asia/Shanghai
+  timezone: UTC
 
 analytics: ""

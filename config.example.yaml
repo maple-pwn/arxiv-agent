@@ -22,7 +22,7 @@ keywords:                          # 关键词精选：命中标题或摘要的�
 llm:                                # 翻译用的 LLM（OpenAI 兼容接口）
   provider: deepseek                # 仅作标识，不影响请求
   base_url: https://api.deepseek.com
-  model: deepseek-v4-pro
+  model: deepseek-v4-flash
   api_key_env: DEEPSEEK_API_KEY     # API key 从该环境变量读取
   timeout: 120                      # 单次请求超时（秒）
   max_retries: 3                    # 失败重试次数
@@ -35,6 +35,6 @@ site:
   title: arXiv Papers
   subtitle: Daily Research Digest
   base_url: ""                      # 部署在 GitHub Pages 子路径时填 "/repo名"，根域名留空
-  timezone: Asia/Shanghai           # 仅用于「今天」的默认日期；归档日期按 arXiv 发布日（UTC）自动判定
+  timezone: UTC                     # 「今天」默认日期口径（归档日期按 arXiv 发布日 UTC，保持一致）
 
 analytics: ""                       # 可选：Cloudflare Web Analytics / GoatCounter 的 script 标签，留空则隐藏访问统计块
