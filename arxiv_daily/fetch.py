@@ -111,6 +111,24 @@ def _build_query(categories: dict) -> str:
     return "(" + " OR ".join(f"cat:{code}" for code in categories) + ")"
 
 
+def _get_page(client: httpx.Client, params: dict, max_retries: int = 6) -> httpx.Response:
+    """带退避重试的请求。arXiv 对共享 IP（如 GitHub Actions 机器）容易返回 429。"""
+    for attempt in range(max_retries):
+        resp = client.get(ARXIV_API, params=params)
+        if resp.status_code in (429, 500, 502, 503, 504):
+            wait = 5 * (2 ** attempt)  # 5s, 10s, 20s, 40s, 80s, 160s
+            print(
+                f"[fetch] HTTP {resp.status_code}（arXiv 限流/服务暂不可用），"
+                f"{wait}s 后重试（第 {attempt + 1}/{max_retries} 次）"
+            )
+            time.sleep(wait)
+            continue
+        resp.raise_for_status()
+        return resp
+    resp.raise_for_status()
+    return resp
+
+
 def fetch_date(config: dict, date_str: str) -> list[dict]:
     """抓取某一天的全部论文，返回解析后的论文列表（按 category/id 排序）。"""
     target = dt.date.fromisoformat(date_str)
@@ -126,8 +144,7 @@ def fetch_date(config: dict, date_str: str) -> list[dict]:
                 "sortBy": "submittedDate",
                 "sortOrder": "descending",
             }
-            resp = client.get(ARXIV_API, params=params)
-            resp.raise_for_status()
+            resp = _get_page(client, params)
             feed = feedparser.parse(resp.text)
             entries = feed.entries
             if not entries:
