@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import os
 from zoneinfo import ZoneInfo
 
 from . import build, fetch, filter as filter_mod, translate
-from .config import load_config
+from .config import DATA_DIR, load_config
 
 
 def _today(config: dict) -> str:
@@ -54,9 +55,13 @@ def main(argv: list[str] | None = None) -> None:
         build.run(config)
     elif args.command == "run":
         fetch.run(config, args.date)
-        filter_mod.run(config, args.date)          # 先标记精选
-        translate.run(config, args.date, args.limit)  # 再翻译（可能只翻精选）
-        build.run(config)
+        data_path = os.path.join(DATA_DIR, f"{args.date}.json")
+        if not os.path.exists(data_path):
+            print(f"[run] {args.date} 无论文（arXiv 可能尚未发布），跳过后续步骤")
+        else:
+            filter_mod.run(config, args.date)          # 先标记精选
+            translate.run(config, args.date, args.limit)  # 再翻译（可能只翻精选）
+            build.run(config)
 
 
 if __name__ == "__main__":

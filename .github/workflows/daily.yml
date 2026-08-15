@@ -2,8 +2,8 @@ name: Daily arXiv Digest
 
 on:
   schedule:
-    # UTC 01:00 = 北京时间 09:00（arXiv 每日 00:00~01:00 UTC 发布，此时间点全年都发布完毕）
-    - cron: '0 1 * * *'
+    # UTC 00:30 = 北京时间 08:30（arXiv 夏令时 00:00 UTC 发布后，避开 DeepSeek 9 点峰值）
+    - cron: '30 0 * * *'
   workflow_dispatch:
     inputs:
       limit:
