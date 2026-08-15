@@ -2,8 +2,8 @@ name: Daily arXiv Digest
 
 on:
   schedule:
-    # UTC 22:00 = 北京时间次日凌晨 6 点
-    - cron: '0 22 * * *'
+    # UTC 01:00 = 北京时间 09:00（arXiv 每日 00:00~01:00 UTC 发布，此时间点全年都发布完毕）
+    - cron: '0 1 * * *'
   workflow_dispatch:
     inputs:
       limit:
