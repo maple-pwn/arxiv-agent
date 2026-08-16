@@ -112,11 +112,20 @@ def _build_query(categories: dict) -> str:
 
 
 def _get_page(client: httpx.Client, params: dict, max_retries: int = 6) -> httpx.Response:
-    """带退避重试的请求。arXiv 对共享 IP（如 GitHub Actions 机器）容易返回 429。"""
+    """带退避重试的请求。arXiv 对共享 IP（如 GitHub Actions 机器）容易返回 429 或超时。"""
     for attempt in range(max_retries):
-        resp = client.get(ARXIV_API, params=params)
-        if resp.status_code in (429, 500, 502, 503, 504):
+        try:
+            resp = client.get(ARXIV_API, params=params)
+        except httpx.TransportError as err:
             wait = 5 * (2 ** attempt)  # 5s, 10s, 20s, 40s, 80s, 160s
+            print(
+                f"[fetch] 请求异常（{err.__class__.__name__}），"
+                f"{wait}s 后重试（第 {attempt + 1}/{max_retries} 次）"
+            )
+            time.sleep(wait)
+            continue
+        if resp.status_code in (429, 500, 502, 503, 504):
+            wait = 5 * (2 ** attempt)
             print(
                 f"[fetch] HTTP {resp.status_code}（arXiv 限流/服务暂不可用），"
                 f"{wait}s 后重试（第 {attempt + 1}/{max_retries} 次）"
@@ -125,8 +134,7 @@ def _get_page(client: httpx.Client, params: dict, max_retries: int = 6) -> httpx
             continue
         resp.raise_for_status()
         return resp
-    resp.raise_for_status()
-    return resp
+    raise RuntimeError(f"[fetch] arXiv 请求重试 {max_retries} 次仍失败，放弃")
 
 
 def fetch_date(config: dict, date_str: str) -> list[dict]:
@@ -135,7 +143,7 @@ def fetch_date(config: dict, date_str: str) -> list[dict]:
     query = _build_query(config["categories"])
     papers: dict[str, dict] = {}
 
-    with httpx.Client(follow_redirects=True, timeout=60) as client:
+    with httpx.Client(follow_redirects=True, timeout=120) as client:
         for page in range(MAX_PAGES):
             params = {
                 "search_query": query,
