@@ -93,15 +93,18 @@ _ANNOUNCE_TZ = ZoneInfo("America/New_York")
 def _announcement_date(published) -> dt.date | None:
     """返回论文的 arXiv 发布日（UTC 口径），与原站归档日期对齐。
 
-    arXiv 每个工作日 14:00 ET 截止、20:00 ET 发布。用 America/New_York 判断
-    是否已过当日截止（14:00），再取 20:00 ET 发布时刻对应的 UTC 日期。
-    周末少量边界论文可能有 ±1 天偏差，可接受。
+    arXiv 每个工作日（周日~周四）20:00 ET 发布，14:00 ET 截止；周五、周六不发布。
+    用 America/New_York 判断截止时间，跳过周末（周五/周六顺延到周日），
+    再取 20:00 ET 发布时刻对应的 UTC 日期。
     """
     parsed = _parse_published(published)
     if parsed is None:
         return None
     eastern = parsed.astimezone(_ANNOUNCE_TZ)
     if eastern.hour >= 14:
+        eastern += dt.timedelta(days=1)
+    # 周五(4)、周六(5) 不发布，顺延到周日(6)
+    while eastern.weekday() in (4, 5):
         eastern += dt.timedelta(days=1)
     announce_et = eastern.replace(hour=20, minute=0, second=0, microsecond=0)
     return announce_et.astimezone(dt.timezone.utc).date()
